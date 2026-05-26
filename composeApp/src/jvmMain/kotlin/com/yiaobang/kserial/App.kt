@@ -14,12 +14,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Power
-import androidx.compose.material.icons.filled.Reply
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -46,6 +46,9 @@ import androidx.compose.ui.unit.sp
 import com.yiaobang.kserial.feature.GatewayEndpoint
 import com.yiaobang.kserial.feature.GatewayMode
 import com.yiaobang.kserial.feature.GatewayViewModel
+import com.yiaobang.kserial.i18n.AppStrings
+import com.yiaobang.kserial.i18n.LocalAppStrings
+import com.yiaobang.kserial.i18n.ProvideAppStrings
 import com.yiaobang.kserial.model.KeywordHighlightConfig
 import com.yiaobang.kserial.model.LogType
 import com.yiaobang.kserial.theme.CupertinoTheme
@@ -71,36 +74,38 @@ fun WorkspaceApp(
     onClose: () -> Unit,
     onMinimize: () -> Unit
 ) {
-    CupertinoTheme(isDark = workspace.prefs.isDark) {
-        val colors = LocalAppColors.current
-        Surface(modifier = Modifier.fillMaxSize(), color = colors.background) {
-            Column {
-                AppTopBar(
-                    title = workspace.hostTitle(host),
-                    isTop = workspace.prefs.isAlwaysOnTop,
-                    onTop = { workspace.prefs.isAlwaysOnTop = !workspace.prefs.isAlwaysOnTop },
-                    onLanguage = { workspace.switchLanguage() },
-                    onTheme = { workspace.switchTheme() },
-                    onMinimize = onMinimize,
-                    onClose = onClose
-                )
-
-                Row(modifier = Modifier.weight(1f)) {
-                    WorkspaceSidebar(
-                        selectedSection = host.selectedSection,
-                        onSelectSection = { workspace.selectSection(host.id, it) }
+    ProvideAppStrings(language = workspace.prefs.currentLanguage) {
+        CupertinoTheme(isDark = workspace.prefs.isDark) {
+            val colors = LocalAppColors.current
+            Surface(modifier = Modifier.fillMaxSize(), color = colors.background) {
+                Column {
+                    AppTopBar(
+                        title = workspace.hostTitle(host),
+                        isTop = workspace.prefs.isAlwaysOnTop,
+                        onTop = { workspace.prefs.isAlwaysOnTop = !workspace.prefs.isAlwaysOnTop },
+                        onLanguage = { workspace.switchLanguage() },
+                        onTheme = { workspace.switchTheme() },
+                        onMinimize = onMinimize,
+                        onClose = onClose
                     )
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        WorkspaceTabBar(
-                            workspace = workspace,
-                            host = host
+                    Row(modifier = Modifier.weight(1f)) {
+                        WorkspaceSidebar(
+                            selectedSection = host.selectedSection,
+                            onSelectSection = { workspace.selectSection(host.id, it) }
                         )
-                        WorkspaceContent(
-                            workspace = workspace,
-                            host = host,
-                            modifier = Modifier.weight(1f)
-                        )
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            WorkspaceTabBar(
+                                workspace = workspace,
+                                host = host
+                            )
+                            WorkspaceContent(
+                                workspace = workspace,
+                                host = host,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
                     }
                 }
             }
@@ -114,6 +119,7 @@ private fun WorkspaceSidebar(
     onSelectSection: (WorkspaceSection) -> Unit
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Column(
         modifier = Modifier
             .width(164.dp)
@@ -124,31 +130,37 @@ private fun WorkspaceSidebar(
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         Text(
-            text = "WORKSPACE",
+            text = strings.workspace,
             color = colors.onSurface.copy(alpha = 0.38f),
             fontSize = 11.sp,
             fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp)
         )
         SidebarItem(
-            title = WorkspaceSection.Basic.label,
+            title = sectionLabel(WorkspaceSection.Basic, strings),
             icon = Icons.Default.Power,
             selected = selectedSection == WorkspaceSection.Basic,
             onClick = { onSelectSection(WorkspaceSection.Basic) }
         )
         SidebarItem(
-            title = WorkspaceSection.Simulator.label,
-            icon = Icons.Default.Reply,
+            title = sectionLabel(WorkspaceSection.Simulator, strings),
+            icon = Icons.AutoMirrored.Filled.Reply,
             selected = selectedSection == WorkspaceSection.Simulator,
             onClick = { onSelectSection(WorkspaceSection.Simulator) }
         )
         SidebarItem(
-            title = WorkspaceSection.Gateway.label,
+            title = sectionLabel(WorkspaceSection.Gateway, strings),
             icon = Icons.Default.Share,
             selected = selectedSection == WorkspaceSection.Gateway,
             onClick = { onSelectSection(WorkspaceSection.Gateway) }
         )
     }
+}
+
+private fun sectionLabel(section: WorkspaceSection, strings: AppStrings): String = when (section) {
+    WorkspaceSection.Basic -> strings.sectionBasic
+    WorkspaceSection.Simulator -> strings.sectionSimulator
+    WorkspaceSection.Gateway -> strings.sectionGateway
 }
 
 @Composable
@@ -196,6 +208,7 @@ private fun WorkspaceTabBar(
     host: WindowHostState
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -210,7 +223,7 @@ private fun WorkspaceTabBar(
         workspace.tabIdsFor(host).forEach { tabId ->
             val tab = workspace.tab(tabId) ?: return@forEach
             WorkspaceTabChip(
-                title = workspace.tabTitle(tab),
+                title = localizedTabTitle(tab, strings),
                 selected = host.activeTabBySection[host.selectedSection] == tabId,
                 floating = host.id != 0,
                 onSelect = { workspace.selectTab(host.id, tabId) },
@@ -285,7 +298,7 @@ private fun WorkspaceTabChip(
             modifier = Modifier.size(26.dp)
         ) {
             Icon(
-                imageVector = if (floating) Icons.Default.Home else Icons.Default.OpenInNew,
+                imageVector = if (floating) Icons.Default.Home else Icons.AutoMirrored.Filled.OpenInNew,
                 contentDescription = null,
                 modifier = Modifier.size(15.dp),
                 tint = colors.onSurface.copy(alpha = 0.58f)
@@ -474,19 +487,20 @@ private fun SimulatorPage(viewModel: SerialViewModel) {
 @Composable
 private fun SimulatorControlPanel(vm: SerialViewModel) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     val config = vm.config
     val prefs = vm.prefs
     Column(
         modifier = Modifier.width(310.dp).fillMaxHeight(),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        CardPanel(title = "CONFIG") {
+        CardPanel(title = strings.panelConfig) {
             ActionButton(
-                text = if (vm.isSimulating) "重新加载配置" else "加载配置",
+                text = if (vm.isSimulating) strings.btnReloadConfig else strings.btnLoadConfig,
                 color = if (vm.isSimulating) colors.success else colors.surface,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                val dialog = FileDialog(null as Frame?, "选择自动回复配置文件", FileDialog.LOAD).apply {
+                val dialog = FileDialog(null as Frame?, strings.simulatorConfigDialogTitle, FileDialog.LOAD).apply {
                     file = "*.conf"
                     isVisible = true
                 }
@@ -499,33 +513,41 @@ private fun SimulatorControlPanel(vm: SerialViewModel) {
                     fontSize = 12.sp
                 )
             }
-            SummaryLine("串口", config.selectedPort.ifBlank { "未配置" })
-            SummaryLine("波特率", config.baudRate.toString())
-            SummaryLine("数据位", config.dataBits.toString())
+            SummaryLine(strings.labelSerialPort, config.selectedPort.ifBlank { strings.notConfigured })
+            SummaryLine(strings.labelBaudRate, config.baudRate.toString())
+            SummaryLine(strings.labelDataBits, config.dataBits.toString())
         }
-        CardPanel(title = "SIMULATOR") {
+        CardPanel(title = strings.panelSimulator) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 ActionButton(
-                    text = if (vm.isPortOpen) "关闭串口" else "打开串口",
+                    text = if (vm.isPortOpen) strings.btnClosePort else strings.btnOpenPort,
                     color = colors.primary,
                     modifier = Modifier.weight(1f)
                 ) { vm.togglePort() }
-                ActionButton("清除日志", colors.surface, Modifier.weight(1f)) { vm.clearLogs() }
+                ActionButton(strings.btnClearLog, colors.surface, Modifier.weight(1f)) { vm.clearLogs() }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(15.dp), modifier = Modifier.padding(top = 4.dp)) {
-                SmallStatusDot(vm.isPortOpen, "串口")
-                SmallStatusDot(vm.isSimulating, "规则")
+                SmallStatusDot(vm.isPortOpen, strings.labelSerialPort)
+                SmallStatusDot(vm.isSimulating, strings.labelRule)
             }
         }
-        CardPanel(title = "OPTIONS") {
-            OptionCheck(prefs.showRealTime, "实时显示") { prefs.showRealTime = it }
-            OptionCheck(prefs.hexDisplay, "HEX 显示") { prefs.hexDisplay = it }
-            OptionCheck(prefs.hexSend, "HEX 发送") { prefs.hexSend = it }
+        CardPanel(title = strings.panelOptions) {
+            OptionCheck(prefs.showRealTime, strings.optRealTime) { prefs.showRealTime = it }
+            OptionCheck(prefs.hexDisplay, strings.optHexDisplay) { prefs.hexDisplay = it }
+            OptionCheck(prefs.hexSend, strings.optHexSend) { prefs.hexSend = it }
         }
-        CardPanel(title = "HIGHLIGHT") {
+        CardPanel(title = strings.panelHighlight) {
             HighlightEditor(prefs.highlight)
         }
     }
+}
+
+private fun localizedTabTitle(tab: com.yiaobang.kserial.workspace.AppTab, strings: AppStrings): String {
+    val selectedPort = tab.serialViewModel?.config?.selectedPort
+    if (!selectedPort.isNullOrBlank()) return selectedPort
+
+    val sectionTitle = sectionLabel(tab.section, strings)
+    return if (tab.titleIndex == 1) sectionTitle else "$sectionTitle ${tab.titleIndex}"
 }
 
 @Composable
@@ -606,10 +628,11 @@ private fun GatewayLogPanel(
 @Composable
 private fun GatewayControlPanel(viewModel: GatewayViewModel) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        CardPanel(title = "CONFIG") {
-            ActionButton("加载配置", colors.surface, Modifier.fillMaxWidth()) {
-                val dialog = FileDialog(null as Frame?, "选择网关配置文件", FileDialog.LOAD).apply {
+        CardPanel(title = strings.panelConfig) {
+            ActionButton(strings.btnLoadConfig, colors.surface, Modifier.fillMaxWidth()) {
+                val dialog = FileDialog(null as Frame?, strings.gatewayConfigDialogTitle, FileDialog.LOAD).apply {
                     file = "*.conf"
                     isVisible = true
                 }
@@ -623,10 +646,10 @@ private fun GatewayControlPanel(viewModel: GatewayViewModel) {
                 )
             }
         }
-        CardPanel(title = "ROUTE") {
+        CardPanel(title = strings.panelRoute) {
             if (viewModel.endpoints.isEmpty()) {
                 Text(
-                    text = "加载 conf 后显示端点和路由",
+                    text = strings.loadGatewayConfigHint,
                     color = colors.onSurface.copy(alpha = 0.58f),
                     fontSize = 12.sp
                 )
@@ -641,26 +664,27 @@ private fun GatewayControlPanel(viewModel: GatewayViewModel) {
             } else {
                 val sourceName = viewModel.endpoints.getOrNull(viewModel.sourceIndex)?.name ?: ""
                 val targetName = viewModel.endpoints.getOrNull(viewModel.targetIndex)?.name ?: ""
-                SelectRow("模式", viewModel.mode.label, GatewayMode.entries.map { it.label }) { label ->
-                    viewModel.mode = GatewayMode.entries.first { it.label == label }
+                val modeLabels = GatewayMode.entries.map { gatewayModeLabel(it, strings) }
+                SelectRow(strings.labelMode, gatewayModeLabel(viewModel.mode, strings), modeLabels) { label ->
+                    viewModel.mode = GatewayMode.entries.first { gatewayModeLabel(it, strings) == label }
                 }
-                SelectRow("来源", sourceName, viewModel.endpoints.map { it.name }) { name ->
+                SelectRow(strings.labelSource, sourceName, viewModel.endpoints.map { it.name }) { name ->
                     viewModel.sourceIndex = viewModel.endpoints.indexOfFirst { it.name == name }.coerceAtLeast(0)
                 }
-                SelectRow("目标", targetName, viewModel.endpoints.map { it.name }) { name ->
+                SelectRow(strings.labelTarget, targetName, viewModel.endpoints.map { it.name }) { name ->
                     viewModel.targetIndex = viewModel.endpoints.indexOfFirst { it.name == name }.coerceAtLeast(0)
                 }
             }
-            OptionCheck(viewModel.hexDisplay, "HEX 显示") { viewModel.hexDisplay = it }
+            OptionCheck(viewModel.hexDisplay, strings.optHexDisplay) { viewModel.hexDisplay = it }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActionButton("清除日志", colors.surface, Modifier.weight(1f)) { viewModel.clearLogs() }
-                ActionButton("清零计数", colors.surface, Modifier.weight(1f)) { viewModel.clearCounters() }
+                ActionButton(strings.btnClearLog, colors.surface, Modifier.weight(1f)) { viewModel.clearLogs() }
+                ActionButton(strings.btnClearCounters, colors.surface, Modifier.weight(1f)) { viewModel.clearCounters() }
             }
         }
-        CardPanel(title = "HIGHLIGHT") {
+        CardPanel(title = strings.panelHighlight) {
             HighlightEditor(viewModel.highlight)
         }
-        CardPanel(title = "LOG") {
+        CardPanel(title = strings.panelLog) {
             LogFilterEditor(viewModel.logFilter)
         }
         viewModel.endpoints.forEach { endpoint ->
@@ -669,19 +693,26 @@ private fun GatewayControlPanel(viewModel: GatewayViewModel) {
     }
 }
 
+private fun gatewayModeLabel(mode: GatewayMode, strings: AppStrings): String = when (mode) {
+    GatewayMode.OneToOne -> strings.gatewayModeOneToOne
+    GatewayMode.OneToMany -> strings.gatewayModeOneToMany
+    GatewayMode.ManyToMany -> strings.gatewayModeManyToMany
+}
+
 @Composable
 private fun GatewayEndpointCard(
     viewModel: GatewayViewModel,
     endpoint: GatewayEndpoint
 ) {
     val colors = LocalAppColors.current
-    CardPanel(title = "ENDPOINT ${endpoint.name}") {
-        SummaryLine("串口", endpoint.selectedPort.ifBlank { "未配置" })
-        SummaryLine("波特率", endpoint.baudRate.toString())
-        SummaryLine("数据位", endpoint.dataBits.toString())
+    val strings = LocalAppStrings.current
+    CardPanel(title = strings.panelEndpoint(endpoint.name)) {
+        SummaryLine(strings.labelSerialPort, endpoint.selectedPort.ifBlank { strings.notConfigured })
+        SummaryLine(strings.labelBaudRate, endpoint.baudRate.toString())
+        SummaryLine(strings.labelDataBits, endpoint.dataBits.toString())
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton(
-                text = if (endpoint.isOpen) "关闭" else "打开",
+                text = if (endpoint.isOpen) strings.btnClose else strings.btnOpen,
                 color = if (endpoint.isOpen) colors.success else colors.primary,
                 modifier = Modifier.weight(1f)
             ) { viewModel.toggleEndpoint(endpoint) }
@@ -724,6 +755,7 @@ private fun RouteLine(
 @Composable
 private fun GatewayStatusBar(viewModel: GatewayViewModel) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -733,7 +765,7 @@ private fun GatewayStatusBar(viewModel: GatewayViewModel) {
         if (viewModel.endpoints.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.CenterStart) {
                 Text(
-                    text = "未加载网关配置",
+                    text = strings.noGatewayConfig,
                     modifier = Modifier.padding(horizontal = 12.dp),
                     color = colors.onSurface.copy(alpha = 0.58f),
                     fontSize = 12.sp
@@ -767,6 +799,7 @@ private fun LogListHeader(
     query: String
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -778,7 +811,7 @@ private fun LogListHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "日志 $visibleCount / $totalCount",
+            text = strings.logCount(visibleCount, totalCount),
             modifier = Modifier
                 .background(colors.primary.copy(alpha = 0.08f), RoundedCornerShape(4.dp))
                 .padding(horizontal = 6.dp, vertical = 2.dp),
@@ -788,7 +821,7 @@ private fun LogListHeader(
         )
         if (query.isNotBlank()) {
             Text(
-                text = "搜索: $query",
+                text = strings.searchPrefix(query),
                 color = colors.primary.copy(alpha = 0.72f),
                 fontSize = 11.sp,
                 maxLines = 1,
@@ -884,12 +917,13 @@ private fun findKeywordRanges(
 @Composable
 private fun EmptyFeaturePage(section: WorkspaceSection) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Column(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(section.label, color = colors.onSurface, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-        Text("点击上方 + 创建一个页面", color = colors.onSurface.copy(alpha = 0.58f), fontSize = 13.sp)
+        Text(sectionLabel(section, strings), color = colors.onSurface, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+        Text(strings.emptyCreatePage, color = colors.onSurface.copy(alpha = 0.58f), fontSize = 13.sp)
     }
 }
 
@@ -924,6 +958,7 @@ private fun SelectRow(
 ) {
     var expanded by remember { mutableStateOf(false) }
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Text(label, modifier = Modifier.width(90.dp), fontSize = 13.sp, color = colors.onSurface)
         Box(modifier = Modifier.weight(1f)) {
@@ -937,7 +972,7 @@ private fun SelectRow(
                     .padding(horizontal = 8.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
-                Text(value.ifBlank { "未选择" }, fontSize = 13.sp, color = colors.onSurface)
+                Text(value.ifBlank { strings.notSelected }, fontSize = 13.sp, color = colors.onSurface)
             }
             DropdownMenu(
                 expanded = expanded,

@@ -10,16 +10,20 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
-import com.yiaobang.kserial.workspace.WindowHostState
+import com.yiaobang.kserial.resources.Res
+import com.yiaobang.kserial.resources.app_icon
 import com.yiaobang.kserial.workspace.WorkspaceState
 import kotlinx.coroutines.delay
+import org.jetbrains.compose.resources.painterResource
 import java.awt.Point
-import java.awt.Window as AwtWindow
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
+import kotlin.time.Duration.Companion.milliseconds
+import java.awt.Window as AwtWindow
 
 fun main() = application {
     val workspace = remember { WorkspaceState() }
+    val appIcon = painterResource(Res.drawable.app_icon)
 
     key(workspace.mainHost.id) {
         val mainWindowState = rememberWindowState(
@@ -35,6 +39,7 @@ fun main() = application {
             },
             state = mainWindowState,
             title = workspace.hostTitle(workspace.mainHost),
+            icon = appIcon,
             undecorated = true,
             alwaysOnTop = workspace.prefs.isAlwaysOnTop,
             resizable = true
@@ -64,6 +69,7 @@ fun main() = application {
                 onCloseRequest = { workspace.mergeHostToMain(host.id) },
                 state = floatingWindowState,
                 title = workspace.hostTitle(host),
+                icon = appIcon,
                 undecorated = true,
                 alwaysOnTop = workspace.prefs.isAlwaysOnTop,
                 resizable = true
@@ -87,7 +93,7 @@ private fun InstallWindowBehavior(
 ) {
     LaunchedEffect(workspace.prefs.isAlwaysOnTop) {
         if (workspace.prefs.isAlwaysOnTop) {
-            delay(50L)
+            delay(50L.milliseconds)
             window.isAlwaysOnTop = true
             window.toFront()
             window.requestFocus()

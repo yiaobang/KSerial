@@ -1,0 +1,78 @@
+<resources>
+    <string name="workspace">WORKSPACE</string>
+    <string name="section_basic">基础</string>
+    <string name="section_simulator">自动回复</string>
+    <string name="section_gateway">串口网关</string>
+    <string name="empty_create_page">点击上方 + 创建一个页面</string>
+
+    <string name="panel_connection">CONNECTION</string>
+    <string name="panel_actions">ACTIONS</string>
+    <string name="panel_quick_send">QUICK SEND</string>
+    <string name="panel_options">OPTIONS</string>
+    <string name="panel_highlight">HIGHLIGHT</string>
+    <string name="panel_log">LOG</string>
+    <string name="panel_config">CONFIG</string>
+    <string name="panel_simulator">SIMULATOR</string>
+    <string name="panel_route">ROUTE</string>
+    <string name="panel_endpoint">ENDPOINT %1$s</string>
+
+    <string name="label_serial_port">串口号</string>
+    <string name="label_baud_rate">波特率</string>
+    <string name="label_data_bits">数据位</string>
+    <string name="label_stop_bits">停止位</string>
+    <string name="label_parity">校验位</string>
+    <string name="label_flow_control">流控</string>
+    <string name="label_interval">发送周期</string>
+    <string name="label_ms">毫秒</string>
+    <string name="label_tx">发送计数</string>
+    <string name="label_rx">接收计数</string>
+    <string name="label_status_port">当前串口</string>
+    <string name="label_status_sim">当前模拟</string>
+    <string name="label_rule">规则</string>
+    <string name="label_mode">模式</string>
+    <string name="label_source">来源</string>
+    <string name="label_target">目标</string>
+
+    <string name="btn_open_port">打开串口</string>
+    <string name="btn_close_port">关闭串口</string>
+    <string name="btn_clear_receive">清除接收</string>
+    <string name="btn_send_data">发送数据</string>
+    <string name="btn_clear_send">清除发送</string>
+    <string name="btn_new_window">新建页面</string>
+    <string name="btn_analog_reply">设备模拟</string>
+    <string name="btn_load_config">加载配置</string>
+    <string name="btn_reload_config">重新加载配置</string>
+    <string name="btn_clear_log">清除日志</string>
+    <string name="btn_clear_counters">清零计数</string>
+    <string name="btn_open">打开</string>
+    <string name="btn_close">关闭</string>
+
+    <string name="opt_real_time">实时显示</string>
+    <string name="opt_hex_display">HEX 显示</string>
+    <string name="opt_hex_send">HEX 发送</string>
+    <string name="opt_loop_send">循环发送</string>
+    <string name="opt_save_send">保存发送</string>
+    <string name="opt_save_receive">保存接收</string>
+    <string name="opt_enable">启用</string>
+    <string name="opt_ignore_case">忽略大小写</string>
+
+    <string name="quick_send_empty">每行一条快捷命令</string>
+    <string name="quick_send_hint">\\r 和 \\n 会在发送时转成回车换行</string>
+    <string name="search_log">搜索日志</string>
+    <string name="keyword_separator_hint">用逗号、分号或换行分隔</string>
+    <string name="opt_only_matches">只看匹配</string>
+    <string name="opt_auto_scroll">自动滚动</string>
+    <string name="btn_reset_log_filter">重置日志过滤</string>
+    <string name="search_prefix">搜索: %1$s</string>
+    <string name="log_count">日志 %1$d / %2$d</string>
+    <string name="not_configured">未配置</string>
+    <string name="not_selected">未选择</string>
+    <string name="no_gateway_config">未加载网关配置</string>
+    <string name="load_gateway_config_hint">加载 conf 后显示端点和路由</string>
+    <string name="simulator_config_dialog_title">选择自动回复配置文件</string>
+    <string name="gateway_config_dialog_title">选择网关配置文件</string>
+
+    <string name="gateway_mode_one_to_one">一对一</string>
+    <string name="gateway_mode_one_to_many">一对多</string>
+    <string name="gateway_mode_many_to_many">多对多</string>
+</resources>

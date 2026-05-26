@@ -21,6 +21,7 @@ class AppTab(
     val id: Int,
     val section: WorkspaceSection,
     val title: String,
+    val titleIndex: Int,
     val serialViewModel: SerialViewModel? = null,
     val gatewayViewModel: GatewayViewModel? = null
 )
@@ -75,10 +76,12 @@ class WorkspaceState {
     ): Int {
         val host = findHost(hostId) ?: mainHost
         val id = nextTabId++
+        val titleIndex = nextSectionTitleIndex(section)
         val tab = AppTab(
             id = id,
             section = section,
-            title = nextTabTitle(section),
+            title = fallbackTabTitle(section, titleIndex),
+            titleIndex = titleIndex,
             serialViewModel = when (section) {
                 WorkspaceSection.Basic -> createSerialViewModel(
                     autoConnectFirstPort = autoConnectBasic,
@@ -228,10 +231,14 @@ class WorkspaceState {
         }
     }
 
-    private fun nextTabTitle(section: WorkspaceSection): String {
+    private fun nextSectionTitleIndex(section: WorkspaceSection): Int {
         val count = (sectionCounts[section] ?: 0) + 1
         sectionCounts[section] = count
-        return if (count == 1) section.label else "${section.label} $count"
+        return count
+    }
+
+    private fun fallbackTabTitle(section: WorkspaceSection, titleIndex: Int): String {
+        return if (titleIndex == 1) section.label else "${section.label} $titleIndex"
     }
 
     private fun disposeTab(tabId: Int) {
