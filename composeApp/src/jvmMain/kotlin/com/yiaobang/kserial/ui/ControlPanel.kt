@@ -9,8 +9,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -24,6 +24,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yiaobang.kserial.SerialViewModel
+import com.yiaobang.kserial.i18n.LocalAppStrings
 import com.yiaobang.kserial.model.KeywordHighlightConfig
 import com.yiaobang.kserial.model.LogFilterConfig
 import com.yiaobang.kserial.theme.LocalAppColors
@@ -33,7 +34,7 @@ import com.yiaobang.kserial.theme.LocalAppColors
  */
 @Composable
 fun ControlPanel(vm: SerialViewModel) {
-    val s = vm.strings
+    val s = LocalAppStrings.current
     val config = vm.config
     val prefs = vm.prefs
     Column(
@@ -41,7 +42,7 @@ fun ControlPanel(vm: SerialViewModel) {
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // 连接参数配置卡片
-        CardPanel(title = "CONNECTION") {
+        CardPanel(title = s.panelConnection) {
             ParameterRow(s.labelSerialPort, config.selectedPort, vm.availablePorts) { config.selectedPort = it }
             ParameterRow(s.labelBaudRate, config.baudRate.toString(), com.yiaobang.kserial.model.SerialPortConfig.BAUD_RATES.map { it.toString() }) { config.baudRate = it.toInt() }
             ParameterRow(s.labelDataBits, config.dataBits.toString(), com.yiaobang.kserial.model.SerialPortConfig.DATA_BITS_LIST.map { it.toString() }) { config.dataBits = it.toInt() }
@@ -51,24 +52,24 @@ fun ControlPanel(vm: SerialViewModel) {
         }
 
         // 动作按钮卡片
-        CardPanel(title = "ACTIONS") {
+        CardPanel(title = s.panelActions) {
             ActionButtonGrid(vm = vm, onClearSend = { vm.inputText = "" })
         }
 
-        CardPanel(title = "QUICK SEND") {
+        CardPanel(title = s.panelQuickSend) {
             QuickSendPanel(vm)
         }
 
         // 选项复选框卡片
-        CardPanel(title = "OPTIONS") {
+        CardPanel(title = s.panelOptions) {
             OptionsGrid(vm = vm)
         }
 
-        CardPanel(title = "HIGHLIGHT") {
+        CardPanel(title = s.panelHighlight) {
             HighlightEditor(prefs.highlight)
         }
 
-        CardPanel(title = "LOG") {
+        CardPanel(title = s.panelLog) {
             LogFilterEditor(prefs.logFilter)
         }
     }
@@ -77,6 +78,7 @@ fun ControlPanel(vm: SerialViewModel) {
 @Composable
 private fun QuickSendPanel(vm: SerialViewModel) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     val prefs = vm.prefs
     val commands = remember(prefs.quickCommandsText) {
         prefs.quickCommandsText
@@ -88,7 +90,7 @@ private fun QuickSendPanel(vm: SerialViewModel) {
     }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         if (commands.isEmpty()) {
-            Text("每行一条快捷命令", fontSize = 12.sp, color = colors.onSurface.copy(alpha = 0.52f))
+            Text(strings.quickSendEmpty, fontSize = 12.sp, color = colors.onSurface.copy(alpha = 0.52f))
         } else {
             commands.chunked(2).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -119,7 +121,7 @@ private fun QuickSendPanel(vm: SerialViewModel) {
                 cursorBrush = SolidColor(colors.primary)
             )
         }
-        Text("\\r 和 \\n 会在发送时转成回车换行", fontSize = 11.sp, color = colors.onSurface.copy(alpha = 0.48f))
+        Text(strings.quickSendHint, fontSize = 11.sp, color = colors.onSurface.copy(alpha = 0.48f))
     }
 }
 
@@ -205,7 +207,7 @@ private fun ParameterRow(
 @Composable
 private fun ActionButtonGrid(vm: SerialViewModel, onClearSend: () -> Unit) {
     val colors = LocalAppColors.current
-    val s = vm.strings
+    val s = LocalAppStrings.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton(
@@ -231,7 +233,7 @@ private fun ActionButtonGrid(vm: SerialViewModel, onClearSend: () -> Unit) {
  */
 @Composable
 private fun OptionsGrid(vm: SerialViewModel) {
-    val s = vm.strings
+    val s = LocalAppStrings.current
     val prefs = vm.prefs
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row {
@@ -309,7 +311,7 @@ private fun QuickCommandButton(
         border = BorderStroke(1.dp, colors.border.copy(alpha = 0.72f))
     ) {
         Icon(
-            imageVector = Icons.Default.Send,
+            imageVector = Icons.AutoMirrored.Filled.Send,
             contentDescription = null,
             modifier = Modifier.size(13.dp),
             tint = colors.primary.copy(alpha = 0.82f)
@@ -328,10 +330,11 @@ private fun QuickCommandButton(
 @Composable
 fun HighlightEditor(highlight: KeywordHighlightConfig) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row {
-            OptionItem(highlight.enabled, "启用", Modifier.weight(1f)) { highlight.enabled = it }
-            OptionItem(highlight.ignoreCase, "忽略大小写", Modifier.weight(1f)) { highlight.ignoreCase = it }
+            OptionItem(highlight.enabled, strings.optEnable, Modifier.weight(1f)) { highlight.enabled = it }
+            OptionItem(highlight.ignoreCase, strings.optIgnoreCase, Modifier.weight(1f)) { highlight.ignoreCase = it }
         }
         Box(
             modifier = Modifier
@@ -358,7 +361,7 @@ fun HighlightEditor(highlight: KeywordHighlightConfig) {
             }
         }
         Text(
-            text = "用逗号、分号或换行分隔",
+            text = strings.keywordSeparatorHint,
             fontSize = 11.sp,
             color = colors.onSurface.copy(alpha = 0.48f)
         )
@@ -368,6 +371,7 @@ fun HighlightEditor(highlight: KeywordHighlightConfig) {
 @Composable
 fun LogFilterEditor(filter: LogFilterConfig) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(
             modifier = Modifier
@@ -387,19 +391,19 @@ fun LogFilterEditor(filter: LogFilterConfig) {
                 cursorBrush = SolidColor(colors.primary)
             )
             if (filter.query.isBlank()) {
-                Text("搜索日志", fontSize = 12.sp, color = colors.onSurface.copy(alpha = 0.32f))
+                Text(strings.searchLog, fontSize = 12.sp, color = colors.onSurface.copy(alpha = 0.32f))
             }
         }
         Row {
-            OptionItem(filter.onlyMatches, "只看匹配", Modifier.weight(1f)) { filter.onlyMatches = it }
-            OptionItem(filter.autoScroll, "自动滚动", Modifier.weight(1f)) { filter.autoScroll = it }
+            OptionItem(filter.onlyMatches, strings.optOnlyMatches, Modifier.weight(1f)) { filter.onlyMatches = it }
+            OptionItem(filter.autoScroll, strings.optAutoScroll, Modifier.weight(1f)) { filter.autoScroll = it }
         }
         Row {
             OptionItem(filter.showRx, "RX", Modifier.weight(1f)) { filter.showRx = it }
             OptionItem(filter.showTx, "TX", Modifier.weight(1f)) { filter.showTx = it }
             OptionItem(filter.showInfo, "INFO", Modifier.weight(1f)) { filter.showInfo = it }
         }
-        ActionButton("重置日志过滤", colors.surface, Modifier.fillMaxWidth()) {
+        ActionButton(strings.btnResetLogFilter, colors.surface, Modifier.fillMaxWidth()) {
             filter.reset()
         }
     }

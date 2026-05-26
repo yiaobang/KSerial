@@ -1,0 +1,78 @@
+<resources>
+    <string name="workspace">WORKSPACE</string>
+    <string name="section_basic">基本</string>
+    <string name="section_simulator">自動応答</string>
+    <string name="section_gateway">シリアルゲートウェイ</string>
+    <string name="empty_create_page">上の + でページを作成</string>
+
+    <string name="panel_connection">CONNECTION</string>
+    <string name="panel_actions">ACTIONS</string>
+    <string name="panel_quick_send">QUICK SEND</string>
+    <string name="panel_options">OPTIONS</string>
+    <string name="panel_highlight">HIGHLIGHT</string>
+    <string name="panel_log">LOG</string>
+    <string name="panel_config">CONFIG</string>
+    <string name="panel_simulator">SIMULATOR</string>
+    <string name="panel_route">ROUTE</string>
+    <string name="panel_endpoint">ENDPOINT %1$s</string>
+
+    <string name="label_serial_port">シリアルポート</string>
+    <string name="label_baud_rate">ボーレート</string>
+    <string name="label_data_bits">データビット</string>
+    <string name="label_stop_bits">ストップビット</string>
+    <string name="label_parity">パリティ</string>
+    <string name="label_flow_control">フロー制御</string>
+    <string name="label_interval">送信間隔</string>
+    <string name="label_ms">ミリ秒</string>
+    <string name="label_tx">送信数</string>
+    <string name="label_rx">受信数</string>
+    <string name="label_status_port">ポート動作中</string>
+    <string name="label_status_sim">シミュレーション中</string>
+    <string name="label_rule">ルール</string>
+    <string name="label_mode">モード</string>
+    <string name="label_source">送信元</string>
+    <string name="label_target">送信先</string>
+
+    <string name="btn_open_port">開く</string>
+    <string name="btn_close_port">閉じる</string>
+    <string name="btn_clear_receive">受信クリア</string>
+    <string name="btn_send_data">データ送信</string>
+    <string name="btn_clear_send">送信クリア</string>
+    <string name="btn_new_window">新規ページ</string>
+    <string name="btn_analog_reply">デバイス模擬</string>
+    <string name="btn_load_config">設定を読み込む</string>
+    <string name="btn_reload_config">設定を再読み込み</string>
+    <string name="btn_clear_log">ログクリア</string>
+    <string name="btn_clear_counters">カウントクリア</string>
+    <string name="btn_open">開く</string>
+    <string name="btn_close">閉じる</string>
+
+    <string name="opt_real_time">リアルタイム表示</string>
+    <string name="opt_hex_display">HEX表示</string>
+    <string name="opt_hex_send">HEX送信</string>
+    <string name="opt_loop_send">繰り返し送信</string>
+    <string name="opt_save_send">送信保存</string>
+    <string name="opt_save_receive">受信保存</string>
+    <string name="opt_enable">有効</string>
+    <string name="opt_ignore_case">大文字小文字を無視</string>
+
+    <string name="quick_send_empty">1行に1つのクイックコマンド</string>
+    <string name="quick_send_hint">\\r と \\n は送信時に CR/LF に変換されます</string>
+    <string name="search_log">ログ検索</string>
+    <string name="keyword_separator_hint">カンマ、セミコロン、改行で区切ります</string>
+    <string name="opt_only_matches">一致のみ</string>
+    <string name="opt_auto_scroll">自動スクロール</string>
+    <string name="btn_reset_log_filter">ログフィルターをリセット</string>
+    <string name="search_prefix">検索: %1$s</string>
+    <string name="log_count">ログ %1$d / %2$d</string>
+    <string name="not_configured">未設定</string>
+    <string name="not_selected">未選択</string>
+    <string name="no_gateway_config">ゲートウェイ設定未読込</string>
+    <string name="load_gateway_config_hint">conf を読み込むとエンドポイントとルートを表示します</string>
+    <string name="simulator_config_dialog_title">自動応答設定を選択</string>
+    <string name="gateway_config_dialog_title">ゲートウェイ設定を選択</string>
+
+    <string name="gateway_mode_one_to_one">1対1</string>
+    <string name="gateway_mode_one_to_many">1対多</string>
+    <string name="gateway_mode_many_to_many">多対多</string>
+</resources>

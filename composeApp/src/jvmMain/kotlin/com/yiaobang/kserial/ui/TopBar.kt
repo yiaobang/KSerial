@@ -17,7 +17,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.yiaobang.kserial.resources.Res
+import com.yiaobang.kserial.resources.app_icon
 import com.yiaobang.kserial.theme.LocalAppColors
+import org.jetbrains.compose.resources.painterResource
 
 /**
  * 自定义顶部标题栏（整合控制按钮）
@@ -42,7 +45,12 @@ fun AppTopBar(
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(Icons.Default.Power, null, modifier = Modifier.size(22.dp), tint = colors.primary)
+        Icon(
+            painter = painterResource(Res.drawable.app_icon),
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = Color.Unspecified
+        )
         Spacer(Modifier.width(8.dp))
         Text(title, style = TextStyle(fontWeight = FontWeight.Bold, fontSize = 14.sp, color = colors.onSurface))
         Spacer(Modifier.weight(1f))

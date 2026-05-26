@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yiaobang.kserial.SerialViewModel
+import com.yiaobang.kserial.i18n.LocalAppStrings
 import com.yiaobang.kserial.theme.LocalAppColors
 
 /**
@@ -21,7 +22,7 @@ import com.yiaobang.kserial.theme.LocalAppColors
  */
 @Composable
 fun AppStatusBar(vm: SerialViewModel) {
-    val s = vm.strings
+    val s = LocalAppStrings.current
     val colors = LocalAppColors.current
     Row(
         modifier = Modifier

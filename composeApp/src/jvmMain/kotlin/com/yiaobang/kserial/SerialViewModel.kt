@@ -9,7 +9,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-import com.yiaobang.kserial.i18n.AppStrings
 import com.yiaobang.kserial.model.AppPreferences
 import com.yiaobang.kserial.model.DataWriteFile
 import com.yiaobang.kserial.model.DeviceSimulator
@@ -50,9 +49,6 @@ class SerialViewModel(
 
     /** UI 显示偏好 */
     val prefs = AppPreferences()
-
-    // ---- 当前语言字典（由 prefs.currentLanguage 驱动）----
-    val strings get() = AppStrings.of(prefs.currentLanguage)
 
     // ---- 串口列表 ----
     var availablePorts by mutableStateOf(emptyList<String>())

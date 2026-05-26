@@ -9,7 +9,11 @@ plugins {
 }
 
 kotlin {
-    jvm()
+    jvm {
+        mainRun {
+            mainClass.set("com.yiaobang.kserial.MainKt")
+        }
+    }
 
     sourceSets {
         commonMain.dependencies {
@@ -55,7 +59,8 @@ compose {
                 "-Dsun.java2d.d3d=true",
                 "-Dskiko.renderApi=DIRECT3D",
                 "-XX:+UseZGC",             // 使用 ZGC 降低停顿
-                "-Xmx2G"                   // 给足内存
+                "-Xmx2G",                   // 给足内存
+                "--enable-native-access=ALL-UNNAMED"
             )
             nativeDistributions {
                 targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
@@ -76,7 +81,13 @@ compose {
                     menu = true
                     shortcut = true
                     // 某些驱动会通过这个参数识别是否需要开启高性能 GPU
-                    jvmArgs("-Dsun.java2d.d3d=true", "-Dskiko.renderApi=DIRECT3D")
+                    jvmArgs(
+                        "-Dsun.java2d.d3d=true",
+                        "-Dskiko.renderApi=DIRECT3D",
+                        "-XX:+UseZGC",             // 使用 ZGC 降低停顿
+                        "-Xmx2G",                   // 给足内存
+                        "--enable-native-access=ALL-UNNAMED"
+                    )
                 }
 //                macOS {
 //                    iconFile.set(project.file("src/main/resources/icons/icon.icns"))

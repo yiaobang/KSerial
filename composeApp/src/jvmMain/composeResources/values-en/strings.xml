@@ -1,0 +1,78 @@
+<resources>
+    <string name="workspace">WORKSPACE</string>
+    <string name="section_basic">Basic</string>
+    <string name="section_simulator">Auto Reply</string>
+    <string name="section_gateway">Serial Gateway</string>
+    <string name="empty_create_page">Click + above to create a page</string>
+
+    <string name="panel_connection">CONNECTION</string>
+    <string name="panel_actions">ACTIONS</string>
+    <string name="panel_quick_send">QUICK SEND</string>
+    <string name="panel_options">OPTIONS</string>
+    <string name="panel_highlight">HIGHLIGHT</string>
+    <string name="panel_log">LOG</string>
+    <string name="panel_config">CONFIG</string>
+    <string name="panel_simulator">SIMULATOR</string>
+    <string name="panel_route">ROUTE</string>
+    <string name="panel_endpoint">ENDPOINT %1$s</string>
+
+    <string name="label_serial_port">Serial Port</string>
+    <string name="label_baud_rate">Baud Rate</string>
+    <string name="label_data_bits">Data Bits</string>
+    <string name="label_stop_bits">Stop Bits</string>
+    <string name="label_parity">Parity</string>
+    <string name="label_flow_control">Flow Control</string>
+    <string name="label_interval">Interval</string>
+    <string name="label_ms">ms</string>
+    <string name="label_tx">TX Count</string>
+    <string name="label_rx">RX Count</string>
+    <string name="label_status_port">Port Active</string>
+    <string name="label_status_sim">Sim Active</string>
+    <string name="label_rule">Rules</string>
+    <string name="label_mode">Mode</string>
+    <string name="label_source">Source</string>
+    <string name="label_target">Target</string>
+
+    <string name="btn_open_port">Open Port</string>
+    <string name="btn_close_port">Close Port</string>
+    <string name="btn_clear_receive">Clear Receive</string>
+    <string name="btn_send_data">Send Data</string>
+    <string name="btn_clear_send">Clear Send</string>
+    <string name="btn_new_window">New Page</string>
+    <string name="btn_analog_reply">Simulation</string>
+    <string name="btn_load_config">Load Config</string>
+    <string name="btn_reload_config">Reload Config</string>
+    <string name="btn_clear_log">Clear Log</string>
+    <string name="btn_clear_counters">Reset Counts</string>
+    <string name="btn_open">Open</string>
+    <string name="btn_close">Close</string>
+
+    <string name="opt_real_time">Show Real-Time</string>
+    <string name="opt_hex_display">Hex Display</string>
+    <string name="opt_hex_send">Hex Send</string>
+    <string name="opt_loop_send">Loop Send</string>
+    <string name="opt_save_send">Save TX</string>
+    <string name="opt_save_receive">Save RX</string>
+    <string name="opt_enable">Enable</string>
+    <string name="opt_ignore_case">Ignore Case</string>
+
+    <string name="quick_send_empty">One quick command per line</string>
+    <string name="quick_send_hint">\\r and \\n are sent as CR/LF</string>
+    <string name="search_log">Search logs</string>
+    <string name="keyword_separator_hint">Separate with commas, semicolons, or new lines</string>
+    <string name="opt_only_matches">Matches Only</string>
+    <string name="opt_auto_scroll">Auto Scroll</string>
+    <string name="btn_reset_log_filter">Reset Log Filter</string>
+    <string name="search_prefix">Search: %1$s</string>
+    <string name="log_count">Logs %1$d / %2$d</string>
+    <string name="not_configured">Not configured</string>
+    <string name="not_selected">Not selected</string>
+    <string name="no_gateway_config">No gateway config loaded</string>
+    <string name="load_gateway_config_hint">Load a conf file to show endpoints and routes</string>
+    <string name="simulator_config_dialog_title">Choose auto-reply config</string>
+    <string name="gateway_config_dialog_title">Choose gateway config</string>
+
+    <string name="gateway_mode_one_to_one">One-to-one</string>
+    <string name="gateway_mode_one_to_many">One-to-many</string>
+    <string name="gateway_mode_many_to_many">Many-to-many</string>
+</resources>
