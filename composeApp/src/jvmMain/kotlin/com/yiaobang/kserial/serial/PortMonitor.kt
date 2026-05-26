@@ -4,6 +4,7 @@ import com.fazecast.jSerialComm.SerialPort
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * 全局串口监视器 (1:1 复刻 Java PortMonitor)
@@ -35,7 +36,7 @@ object PortMonitor {
                 }
                 
                 // 每隔 2 秒扫描一次 (对齐 Java 版间隔)
-                delay(2000)
+                delay(2000.milliseconds)
             }
         }
     }

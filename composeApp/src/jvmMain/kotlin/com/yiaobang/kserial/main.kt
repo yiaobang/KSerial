@@ -1,91 +1,118 @@
 package com.yiaobang.kserial
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.*
+import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
+import androidx.compose.ui.window.application
+import androidx.compose.ui.window.rememberWindowState
+import com.yiaobang.kserial.workspace.WindowHostState
+import com.yiaobang.kserial.workspace.WorkspaceState
 import kotlinx.coroutines.delay
 import java.awt.Point
+import java.awt.Window as AwtWindow
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 
-/**
- * 窗口信息数据结构
- */
-data class WindowInfo(val id: Int)
-
-/**
- * 应用启动入口
- * 维护多窗口列表，每个窗口持有独立的 ViewModel 实例
- */
 fun main() = application {
-    val windows = remember { mutableStateListOf(WindowInfo(0)) }
-    var nextId by remember { mutableStateOf(1) }
+    val workspace = remember { WorkspaceState() }
 
-    windows.forEach { windowInfo ->
-        val windowState = rememberWindowState(
-            width = 920.dp,
-            height = 720.dp,
+    key(workspace.mainHost.id) {
+        val mainWindowState = rememberWindowState(
+            width = 1120.dp,
+            height = 760.dp,
             position = WindowPosition(Alignment.Center)
         )
-        // ViewModel 提升到 Window 作用域外，确保 alwaysOnTop 状态与 Window 属性同步
-        val viewModel = remember { SerialViewModel() }
 
         Window(
             onCloseRequest = {
-                windows.remove(windowInfo)
-                if (windows.isEmpty()) exitApplication()
+                workspace.disposeAll()
+                exitApplication()
             },
-            state = windowState,
-            title = "KSerial",
+            state = mainWindowState,
+            title = workspace.hostTitle(workspace.mainHost),
             undecorated = true,
-            alwaysOnTop = viewModel.prefs.isAlwaysOnTop,
+            alwaysOnTop = workspace.prefs.isAlwaysOnTop,
             resizable = true
         ) {
-            // 双保险置顶：通过 AWT 句柄直接控制
-            LaunchedEffect(viewModel.prefs.isAlwaysOnTop) {
-                if (viewModel.prefs.isAlwaysOnTop) {
-                    delay(50L)
-                    window.isAlwaysOnTop = true
-                    window.toFront()
-                    window.requestFocus()
-                } else {
-                    window.isAlwaysOnTop = false
-                }
-            }
-
-            // AWT 鼠标监听器：实现顶部 40px 区域的窗口拖拽
-            remember(window) {
-                val adapter = object : MouseAdapter() {
-                    private var dragStart = Point()
-                    override fun mousePressed(e: MouseEvent) {
-                        if (e.y <= 40) dragStart = e.point
-                    }
-                    override fun mouseDragged(e: MouseEvent) {
-                        if (e.y <= 40) {
-                            val loc = window.location
-                            window.setLocation(loc.x + e.x - dragStart.x, loc.y + e.y - dragStart.y)
-                        }
-                    }
-                }
-                window.addMouseListener(adapter)
-                window.addMouseMotionListener(adapter)
-            }
-
-            App(
-                viewModel = viewModel,
+            InstallWindowBehavior(window, workspace)
+            WorkspaceApp(
+                workspace = workspace,
+                host = workspace.mainHost,
                 onClose = {
-                    windows.remove(windowInfo)
-                    if (windows.isEmpty()) exitApplication()
+                    workspace.disposeAll()
+                    exitApplication()
                 },
-                onMinimize = { window.isMinimized = true },
-                onNewWindow = { windows.add(WindowInfo(nextId++)) }
+                onMinimize = { window.isMinimized = true }
             )
         }
+    }
+
+    workspace.floatingHosts.forEach { host ->
+        key(host.id) {
+            val floatingWindowState = rememberWindowState(
+                width = 980.dp,
+                height = 700.dp,
+                position = WindowPosition(Alignment.Center)
+            )
+
+            Window(
+                onCloseRequest = { workspace.mergeHostToMain(host.id) },
+                state = floatingWindowState,
+                title = workspace.hostTitle(host),
+                undecorated = true,
+                alwaysOnTop = workspace.prefs.isAlwaysOnTop,
+                resizable = true
+            ) {
+                InstallWindowBehavior(window, workspace)
+                WorkspaceApp(
+                    workspace = workspace,
+                    host = host,
+                    onClose = { workspace.mergeHostToMain(host.id) },
+                    onMinimize = { window.isMinimized = true }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun InstallWindowBehavior(
+    window: AwtWindow,
+    workspace: WorkspaceState
+) {
+    LaunchedEffect(workspace.prefs.isAlwaysOnTop) {
+        if (workspace.prefs.isAlwaysOnTop) {
+            delay(50L)
+            window.isAlwaysOnTop = true
+            window.toFront()
+            window.requestFocus()
+        } else {
+            window.isAlwaysOnTop = false
+        }
+    }
+
+    remember(window) {
+        val adapter = object : MouseAdapter() {
+            private var dragStart = Point()
+
+            override fun mousePressed(e: MouseEvent) {
+                if (e.y <= 40) dragStart = e.point
+            }
+
+            override fun mouseDragged(e: MouseEvent) {
+                if (e.y <= 40) {
+                    val loc = window.location
+                    window.setLocation(loc.x + e.x - dragStart.x, loc.y + e.y - dragStart.y)
+                }
+            }
+        }
+        window.addMouseListener(adapter)
+        window.addMouseMotionListener(adapter)
+        adapter
     }
 }

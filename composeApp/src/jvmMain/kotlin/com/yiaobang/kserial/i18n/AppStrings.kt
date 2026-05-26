@@ -72,7 +72,7 @@ sealed class AppStrings {
         override val btnClearReceive = "清除接收"
         override val btnSendData = "发送数据"
         override val btnClearSend = "清除发送"
-        override val btnNewWindow = "新建窗口"
+        override val btnNewWindow = "新建页面"
         override val btnAnalogReply = "设备模拟"
 
         override val optRealTime = "实时显示"
@@ -108,7 +108,7 @@ sealed class AppStrings {
         override val btnClearReceive = "Clear Receive"
         override val btnSendData = "Send Data"
         override val btnClearSend = "Clear Send"
-        override val btnNewWindow = "New Window"
+        override val btnNewWindow = "New Page"
         override val btnAnalogReply = "Simulation"
 
         override val optRealTime = "Show Real-Time"
@@ -144,7 +144,7 @@ sealed class AppStrings {
         override val btnClearReceive = "受信クリア"
         override val btnSendData = "データ送信"
         override val btnClearSend = "送信エリアクリア"
-        override val btnNewWindow = "新規ウィンドウ"
+        override val btnNewWindow = "新規ページ"
         override val btnAnalogReply = "デバイス模擬"
 
         override val optRealTime = "リアルタイム表示"

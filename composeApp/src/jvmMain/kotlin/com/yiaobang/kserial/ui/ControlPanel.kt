@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,27 +18,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yiaobang.kserial.SerialViewModel
+import com.yiaobang.kserial.model.KeywordHighlightConfig
+import com.yiaobang.kserial.model.LogFilterConfig
 import com.yiaobang.kserial.theme.LocalAppColors
-import java.awt.FileDialog
-import java.awt.Frame
-import java.io.File
 
 /**
  * 右侧控制面板容器，包含连接参数、动作按钮、选项复选框三张卡片
  */
 @Composable
-fun ControlPanel(vm: SerialViewModel, onNewWindow: () -> Unit) {
+fun ControlPanel(vm: SerialViewModel) {
     val s = vm.strings
     val config = vm.config
     val prefs = vm.prefs
     Column(
         modifier = Modifier.width(310.dp).fillMaxHeight(),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         // 连接参数配置卡片
         CardPanel(title = "CONNECTION") {
@@ -51,14 +52,82 @@ fun ControlPanel(vm: SerialViewModel, onNewWindow: () -> Unit) {
 
         // 动作按钮卡片
         CardPanel(title = "ACTIONS") {
-            ActionButtonGrid(vm = vm, onNewWindow = onNewWindow, onClearSend = { vm.inputText = "" })
+            ActionButtonGrid(vm = vm, onClearSend = { vm.inputText = "" })
+        }
+
+        CardPanel(title = "QUICK SEND") {
+            QuickSendPanel(vm)
         }
 
         // 选项复选框卡片
         CardPanel(title = "OPTIONS") {
             OptionsGrid(vm = vm)
         }
+
+        CardPanel(title = "HIGHLIGHT") {
+            HighlightEditor(prefs.highlight)
+        }
+
+        CardPanel(title = "LOG") {
+            LogFilterEditor(prefs.logFilter)
+        }
     }
+}
+
+@Composable
+private fun QuickSendPanel(vm: SerialViewModel) {
+    val colors = LocalAppColors.current
+    val prefs = vm.prefs
+    val commands = remember(prefs.quickCommandsText) {
+        prefs.quickCommandsText
+            .lineSequence()
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
+            .take(8)
+            .toList()
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (commands.isEmpty()) {
+            Text("每行一条快捷命令", fontSize = 12.sp, color = colors.onSurface.copy(alpha = 0.52f))
+        } else {
+            commands.chunked(2).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    row.forEach { command ->
+                        QuickCommandButton(
+                            text = command,
+                            modifier = Modifier.weight(1f)
+                        ) { vm.sendData(expandCommandEscapes(command)) }
+                    }
+                    if (row.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .background(colors.background, RoundedCornerShape(4.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(4.dp))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            contentAlignment = Alignment.TopStart
+        ) {
+            BasicTextField(
+                value = prefs.quickCommandsText,
+                onValueChange = { prefs.quickCommandsText = it },
+                modifier = Modifier.fillMaxSize(),
+                textStyle = TextStyle(fontSize = 12.sp, color = colors.onSurface),
+                cursorBrush = SolidColor(colors.primary)
+            )
+        }
+        Text("\\r 和 \\n 会在发送时转成回车换行", fontSize = 11.sp, color = colors.onSurface.copy(alpha = 0.48f))
+    }
+}
+
+private fun expandCommandEscapes(command: String): String {
+    return command
+        .replace("\\r", "\r")
+        .replace("\\n", "\n")
+        .replace("\\t", "\t")
 }
 
 /**
@@ -70,12 +139,18 @@ fun CardPanel(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(colors.surface, RoundedCornerShape(8.dp))
-            .border(1.dp, colors.border, RoundedCornerShape(8.dp))
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
+            .background(colors.surface, RoundedCornerShape(7.dp))
+            .border(1.dp, colors.border.copy(alpha = 0.74f), RoundedCornerShape(7.dp))
+            .padding(horizontal = 10.dp, vertical = 9.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(title, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = colors.onSurface.copy(0.4f))
+        Text(
+            title,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onSurface.copy(0.42f),
+            letterSpacing = 0.sp
+        )
         content()
     }
 }
@@ -128,7 +203,7 @@ private fun ParameterRow(
  * 动作按钮网格（3×2 排列）
  */
 @Composable
-private fun ActionButtonGrid(vm: SerialViewModel, onNewWindow: () -> Unit, onClearSend: () -> Unit) {
+private fun ActionButtonGrid(vm: SerialViewModel, onClearSend: () -> Unit) {
     val colors = LocalAppColors.current
     val s = vm.strings
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -144,24 +219,9 @@ private fun ActionButtonGrid(vm: SerialViewModel, onNewWindow: () -> Unit, onCle
             ActionButton(s.btnSendData, colors.success, Modifier.weight(1f)) { vm.sendData(vm.inputText) }
             ActionButton(s.btnClearSend, colors.surface, Modifier.weight(1f)) { onClearSend() }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            ActionButton(s.btnNewWindow, colors.surface, Modifier.weight(1f), onNewWindow)
-            ActionButton(
-                text = if (vm.isSimulating) "正在模拟" else s.btnAnalogReply,
-                color = if (vm.isSimulating) colors.success else colors.surface,
-                modifier = Modifier.weight(1f)
-            ) {
-                val dialog = FileDialog(null as Frame?, "选择 JSON 模拟配置文件", FileDialog.LOAD).apply {
-                    file = "*.json"
-                    isVisible = true
-                }
-                dialog.file?.let { vm.loadSimulator(File(dialog.directory, it)) }
-            }
-        }
         // 状态指示灯
         Row(horizontalArrangement = Arrangement.spacedBy(15.dp), modifier = Modifier.padding(top = 4.dp)) {
             StatusDot(vm.isPortOpen, s.labelStatusPort)
-            StatusDot(vm.isSimulating, s.labelStatusSim)
         }
     }
 }
@@ -230,6 +290,118 @@ fun ActionButton(text: String, color: Color, modifier: Modifier, onClick: () -> 
         border = if (!isMainColor) BorderStroke(1.dp, colors.border) else null
     ) {
         Text(text, fontSize = 12.sp, color = if (isMainColor) Color.White else colors.onSurface)
+    }
+}
+
+@Composable
+private fun QuickCommandButton(
+    text: String,
+    modifier: Modifier,
+    onClick: () -> Unit
+) {
+    val colors = LocalAppColors.current
+    Button(
+        onClick = onClick,
+        modifier = modifier.height(30.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = colors.background),
+        shape = RoundedCornerShape(5.dp),
+        contentPadding = PaddingValues(horizontal = 7.dp),
+        border = BorderStroke(1.dp, colors.border.copy(alpha = 0.72f))
+    ) {
+        Icon(
+            imageVector = Icons.Default.Send,
+            contentDescription = null,
+            modifier = Modifier.size(13.dp),
+            tint = colors.primary.copy(alpha = 0.82f)
+        )
+        Spacer(Modifier.width(5.dp))
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = colors.onSurface.copy(alpha = 0.84f)
+        )
+    }
+}
+
+@Composable
+fun HighlightEditor(highlight: KeywordHighlightConfig) {
+    val colors = LocalAppColors.current
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row {
+            OptionItem(highlight.enabled, "启用", Modifier.weight(1f)) { highlight.enabled = it }
+            OptionItem(highlight.ignoreCase, "忽略大小写", Modifier.weight(1f)) { highlight.ignoreCase = it }
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(54.dp)
+                .background(colors.background.copy(alpha = 0.82f), RoundedCornerShape(5.dp))
+                .border(1.dp, colors.border.copy(alpha = 0.72f), RoundedCornerShape(5.dp))
+                .padding(horizontal = 8.dp, vertical = 6.dp),
+            contentAlignment = Alignment.TopStart
+        ) {
+            BasicTextField(
+                value = highlight.keywordsText,
+                onValueChange = { highlight.keywordsText = it },
+                modifier = Modifier.fillMaxSize(),
+                textStyle = TextStyle(fontSize = 12.sp, color = colors.onSurface),
+                cursorBrush = SolidColor(colors.primary)
+            )
+            if (highlight.keywordsText.isBlank()) {
+                Text(
+                    text = "ERROR, WARN, OK",
+                    fontSize = 12.sp,
+                    color = colors.onSurface.copy(alpha = 0.32f)
+                )
+            }
+        }
+        Text(
+            text = "用逗号、分号或换行分隔",
+            fontSize = 11.sp,
+            color = colors.onSurface.copy(alpha = 0.48f)
+        )
+    }
+}
+
+@Composable
+fun LogFilterEditor(filter: LogFilterConfig) {
+    val colors = LocalAppColors.current
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(30.dp)
+                .background(colors.background.copy(alpha = 0.82f), RoundedCornerShape(5.dp))
+                .border(1.dp, colors.border.copy(alpha = 0.72f), RoundedCornerShape(5.dp))
+                .padding(horizontal = 8.dp),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            BasicTextField(
+                value = filter.query,
+                onValueChange = { filter.query = it },
+                modifier = Modifier.fillMaxWidth(),
+                textStyle = TextStyle(fontSize = 12.sp, color = colors.onSurface),
+                singleLine = true,
+                cursorBrush = SolidColor(colors.primary)
+            )
+            if (filter.query.isBlank()) {
+                Text("搜索日志", fontSize = 12.sp, color = colors.onSurface.copy(alpha = 0.32f))
+            }
+        }
+        Row {
+            OptionItem(filter.onlyMatches, "只看匹配", Modifier.weight(1f)) { filter.onlyMatches = it }
+            OptionItem(filter.autoScroll, "自动滚动", Modifier.weight(1f)) { filter.autoScroll = it }
+        }
+        Row {
+            OptionItem(filter.showRx, "RX", Modifier.weight(1f)) { filter.showRx = it }
+            OptionItem(filter.showTx, "TX", Modifier.weight(1f)) { filter.showTx = it }
+            OptionItem(filter.showInfo, "INFO", Modifier.weight(1f)) { filter.showInfo = it }
+        }
+        ActionButton("重置日志过滤", colors.surface, Modifier.fillMaxWidth()) {
+            filter.reset()
+        }
     }
 }
 

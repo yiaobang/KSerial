@@ -1,207 +1,278 @@
-<div align="center">
-
 # KSerial
 
-**基于 Kotlin Compose Multiplatform 构建的现代化串口调试工具**
+KSerial 是一个基于 Kotlin 和 Compose Multiplatform 的桌面串口调试工具。项目当前处在从 JavaFX 版本迁移到 Compose Multiplatform 的阶段，现有界面布局和业务能力主要来源于原项目 [SerialPortToolFX](https://github.com/yiaobang/SerialPortToolFX)，本地对照项目路径为 `D:\Code\JavaProjects\SerialPortToolFX`。
 
-[![Kotlin](https://img.shields.io/badge/Kotlin-2.x-7F52FF?logo=kotlin&logoColor=white)](https://kotlinlang.org)
-[![Compose Multiplatform](https://img.shields.io/badge/Compose%20Multiplatform-Desktop-4D8AF0?logo=jetbrains)](https://www.jetbrains.com/lp/compose-multiplatform/)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com)
-[![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
+这个仓库的目标不是只把 JavaFX UI 机械翻译成 Compose，而是在保留原有串口调试能力的基础上，逐步利用 Kotlin、协程、Flow、Compose 状态模型和跨平台工程结构，把项目整理成更适合长期维护和扩展的串口工具。
 
-</div>
+## 当前定位
 
----
+- 当前运行目标是 JVM Desktop。虽然工程使用 Compose Multiplatform，但串口通信依赖 `jSerialComm`，所以当前主要是桌面端应用。
+- 当前 UI 与功能形态基本继承 JavaFX 版本：左侧收发区、右侧串口参数与操作面板、底部 TX/RX 统计栏。
+- 当前代码已经开始 Kotlin 化：串口扫描使用协程和 `StateFlow`，串口数据使用 `SharedFlow` 分发，循环发送使用协程 `Job`，主题和文案由 Compose 状态驱动。
+- 后续适合继续拆分为 UI 状态、串口会话、编解码、设备模拟、日志存储等更清晰的模块。
 
-## ✨ 简介
+## 功能现状
 
-KSerial 是一款基于 **Kotlin Compose Multiplatform** 构建的桌面端串口调试助手。  
-它从 JavaFX 版本的串口工具完整移植而来，并在此基础上以 Kotlin 和 Compose 的惯用法进行全面重构：  
-更清晰的职责划分、更符合 Kotlin 风格的代码结构、以及基于 **Cupertino 设计语言** 的精致双主题 UI。
+| 功能 | 当前状态 | 说明 |
+| --- | --- | --- |
+| 串口扫描 | 已实现 | `PortMonitor` 每 2 秒扫描一次系统串口，并通过 `StateFlow` 推送到 UI |
+| 串口连接参数 | 已实现 | 支持串口号、波特率、数据位、停止位、校验位、流控 |
+| 自动同步串口 | 已实现 | 选中串口或参数变化后会尝试同步打开串口 |
+| 数据发送 | 已实现 | 支持文本发送与 HEX 发送 |
+| 数据接收显示 | 已实现 | 接收数据进入日志列表，支持实时显示开关和 HEX 显示 |
+| 循环发送 | 已实现 | 使用协程按指定毫秒间隔循环发送输入区内容 |
+| TX/RX 统计 | 已实现 | 底部状态栏显示发送/接收字节数，点击可清零 |
+| 工作区导航与标签页 | 已实现 | 左侧按功能导航；基础、自动回复、串口网关各自管理标签页，标签页可剥离为独立窗口再合并 |
+| 设备模拟/自动回复 | 已实现 | 支持 JSON 与 HOCON `.conf` 配置、定长分帧、分隔符分帧、HEX/文本映射；`.conf` 可同时声明串口参数 |
+| 串口网关 | 初版实现 | 支持从 `.conf` 加载多个串口端点和路由，实现一对一、一对多、多对多转发 |
+| 关键词高亮 | 初版实现 | 基础、自动回复、串口网关日志均支持多关键词高亮和忽略大小写 |
+| 日志过滤/搜索 | 初版实现 | 支持按关键词、TX/RX/INFO 类型过滤，支持暂停自动滚动 |
+| 快捷发送 | 初版实现 | 基础和自动回复页面支持多行快捷命令模板，点击即可发送 |
+| 串口占用保护 | 初版实现 | 基础、自动回复、串口网关之间共享进程内占用表，避免同一 COM 被多个页面重复打开 |
+| 配置校验提示 | 初版实现 | 自动回复和串口网关加载 `.conf` 后会在日志中提示缺失端点、重复端口、无效路由引用等问题 |
+| 数据落盘 | 初版实现 | `保存发送` / `保存接收` 开关会按需创建 `.write` / `.read` 文件并写入 HEX 数据 |
+| 多语言 | 已实现基础版 | 内置中文、英文、日文，通过顶部按钮循环切换；当前默认中文，尚未按系统语言初始化 |
+| 主题 | 已实现 | 自定义 Cupertino 风格浅色/深色主题，颜色切换使用 Compose 动画 |
+| 波形图 | 代码存在但未接入 | `SerialChart` 已存在，当前主界面还没有实际使用 |
 
----
+## 与 JavaFX 原项目的对比
 
-## 🖥️ 界面预览
+| 方向 | SerialPortToolFX | KSerial 当前实现 |
+| --- | --- | --- |
+| UI 框架 | JavaFX + FXML + CSS + AtlantaFX | Compose Multiplatform + Material3 组件 + 自定义主题 |
+| 主界面 | `SerialPortView.fxml` + `SerialPortView.java` | `App.kt` + `ControlPanel.kt` + `TopBar.kt` + `StatusBar.kt` |
+| 状态模型 | JavaFX `Property` / Binding | Compose `mutableStateOf` / `mutableStateListOf` / `snapshotFlow` |
+| 串口通信 | `SerialComm` 同时承担 ViewModel、串口、统计、存储协调 | `SerialViewModel` 协调业务，`SerialComm` 更偏底层通信 |
+| 串口扫描 | 后台线程 + `SimpleStringProperty` | 协程 + `MutableStateFlow<List<String>>` |
+| 数据监听 | 独立 `SerialDataListener`，使用 `LISTENING_EVENT_DATA_RECEIVED` | `SerialComm` 实现监听器，使用 `LISTENING_EVENT_DATA_AVAILABLE` 后主动读取 |
+| 接收展示 | `ByteBuffer` 保存最多 115200 字节，TextArea 整体刷新 | `LogEntry` 列表展示，最多保留 1000 条日志 |
+| 循环发送 | JavaFX `Timeline` | Kotlin 协程 `Job` |
+| 设备模拟配置 | Gson + `Map<String, String>` | `kotlinx.serialization.json` 兼容旧 JSON，Typesafe Config 解析 HOCON `.conf` |
+| 国际化 | `ResourceBundle`，按系统语言初始化 | sealed class 文案表，按钮循环切换 |
+| 主题 | AtlantaFX Cupertino 主题 + CSS | Compose `CompositionLocal` 色板 + `animateColorAsState` |
+| 多窗口 | 新窗口会复制部分配置与主题，并偏移位置 | 新窗口独立创建，当前未复制已有窗口配置 |
+| 打包 | Gradle jlink / jpackage | Compose Desktop `nativeDistributions` |
 
-| Light Mode | Dark Mode |
-|:---:|:---:|
-| 极简浅色 Cupertino 风格 | 纯黑深色模式，适合长时间工作 |
+## 项目结构
 
-> 支持 **500ms 平滑主题切换动画**，明暗切换不突兀。
-
----
-
-## 🚀 核心功能
-
-### 串口通信
-- ✅ 完整的串口参数配置（波特率 / 数据位 / 停止位 / 校验位 / 流控）
-- ✅ 系统串口自动扫描与热插拔检测（每 2 秒轮询，变化时自动更新）
-- ✅ 检测到串口自动尝试连接（复刻原 JavaFX 行为）
-- ✅ HEX / UTF-8 双模式收发
-- ✅ 循环定时发送（可动态调整发送周期）
-- ✅ TX / RX 字节计数（点击状态栏清零）
-
-### 设备模拟
-- ✅ 加载 JSON 配置文件，模拟串口设备自动应答
-- ✅ 支持两种协议分帧策略：
-  - **定长分帧**（`FixedLengthSimulator`）
-  - **分隔符分帧**（`DelimiterBasedSimulator`）
-- ✅ 同时支持 HEX 和 UTF-8 编码的指令-应答映射
-
-### 数据持久化
-- ✅ 串口连接时自动创建 `.read` / `.write` 日志文件
-- ✅ 以 HEX 格式异步追加写入，不阻塞 UI
-
-### 多窗口 & 体验
-- ✅ 多窗口并发，每个窗口独立持有串口实例
-- ✅ 窗口置顶（双保险：Compose 属性 + AWT 句柄联动）
-- ✅ 自定义无边框窗口，顶部 40px 区域原生拖拽
-- ✅ 三语言支持：🇨🇳 中文 / 🇺🇸 英文 / 🇯🇵 日文（循环切换）
-
----
-
-## 🏗️ 项目架构
-
+```text
+KSerial
+├─ build.gradle.kts
+├─ settings.gradle.kts
+├─ gradle/libs.versions.toml
+└─ composeApp
+   ├─ build.gradle.kts
+   ├─ compose-desktop.pro
+   └─ src/jvmMain
+      ├─ composeResources
+      │  └─ drawable
+      └─ kotlin/com/yiaobang/kserial
+         ├─ main.kt
+         ├─ App.kt
+         ├─ SerialViewModel.kt
+         ├─ i18n
+         │  └─ AppStrings.kt
+         ├─ model
+         │  ├─ AppPreferences.kt
+         │  ├─ SerialPortConfig.kt
+         │  ├─ LogState.kt
+         │  ├─ DataWriteFile.kt
+         │  ├─ DeviceSimulator.kt
+         │  ├─ FixedLengthSimulator.kt
+         │  ├─ DelimiterBasedSimulator.kt
+         │  └─ CircularArray.kt
+         ├─ serial
+         │  ├─ SerialComm.kt
+         │  └─ PortMonitor.kt
+         ├─ theme
+         │  ├─ AppColors.kt
+         │  └─ CupertinoTheme.kt
+         ├─ ui
+         │  ├─ ControlPanel.kt
+         │  ├─ TopBar.kt
+         │  ├─ StatusBar.kt
+         │  └─ SerialChart.kt
+         └─ utils
+            └─ ByteArrayExt.kt
 ```
-composeApp/src/jvmMain/kotlin/com/yiaobang/kserial/
-├── App.kt                    # 主布局编排（~130 行，纯组合）
-├── SerialViewModel.kt        # 业务协调层（ViewModel）
-├── main.kt                   # 窗口启动入口
-│
-├── i18n/
-│   └── AppStrings.kt         # 多语言：sealed class + Language enum
-│
-├── model/
-│   ├── SerialPortConfig.kt   # Compose 状态持有：串口连接参数
-│   ├── AppPreferences.kt     # Compose 状态持有：UI 偏好设置
-│   ├── LogState.kt           # 日志数据结构（LogEntry, LogType）
-│   ├── CircularArray.kt      # 环形字节缓冲区
-│   ├── DataWriteFile.kt      # 异步数据持久化
-│   ├── DeviceSimulator.kt    # 模拟器基类（工厂方法模式）
-│   ├── DelimiterBasedSimulator.kt
-│   └── FixedLengthSimulator.kt
-│
-├── serial/
-│   ├── SerialComm.kt         # 纯串口通信层（单一职责）
-│   └── PortMonitor.kt        # 全局串口扫描单例
-│
-├── theme/
-│   ├── AppColors.kt          # Cupertino 色彩令牌
-│   └── CupertinoTheme.kt     # 主题容器（含平滑动画）
-│
-├── ui/
-│   ├── TopBar.kt             # 顶部标题栏组件
-│   ├── StatusBar.kt          # 底部状态栏组件
-│   ├── ControlPanel.kt       # 右侧控制面板（连接参数 / 动作 / 选项）
-│   └── SerialChart.kt        # 数据波形图（Canvas 绘制）
-│
-└── utils/
-    └── ByteArrayExt.kt       # ByteArray / String 编码扩展函数
+
+## 核心数据流
+
+```text
+SerialPort
+  -> SerialComm
+  -> dataListeners: DataWriteFile / DeviceSimulator
+  -> SharedFlow<ByteArray>
+  -> SerialViewModel
+  -> Compose UI
 ```
 
-### 架构亮点
+发送路径：
 
-| 模式 | 应用 |
-|------|------|
-| **State Holder 模式** | `SerialPortConfig` / `AppPreferences` 将串口参数与 UI 偏好从 ViewModel 中解耦 |
-| **单一职责** | `SerialComm` 只做串口通信，通过回调列表通知模拟器和持久化模块 |
-| **密封类枚举** | `sealed class AppStrings` + `enum Language`，类型安全的多语言系统 |
-| **扩展函数** | `ByteArray.toHexString()` 等，取代 Java 风格的工具类静态方法 |
-| **Flow + snapshotFlow** | 串口数据流和参数变化联动均通过 Kotlin Flow 驱动 |
+```text
+Compose input
+  -> SerialViewModel.sendData()
+  -> HEX or UTF-8 encode
+  -> SerialComm.write()
+  -> TX counter / log / write file
+```
 
----
+设备模拟路径：
 
-## 🔧 设备模拟 JSON 格式
+```text
+JSON / HOCON config
+  -> DeviceSimulator factory
+  -> FixedLengthSimulator or DelimiterBasedSimulator
+  -> SerialComm data listener
+  -> matched reply
+  -> SerialComm.write()
+```
 
-```json
-{
-  "encode": "UTF8",
-  "delimiter": "\n",
-  "GET_STATUS": "OK\n",
-  "PING": "PONG\n"
+## 示例配置
+
+示例文件位于 `config_samples/`。自动回复和串口网关建议优先使用 `.conf`，因为它可以把串口连接参数、规则、路由和关键词高亮放在同一个文件里。
+
+### 自动回复
+
+```hocon
+simulator {
+  endpoint {
+    port = "COM2"
+    baudRate = 9600
+    dataBits = 8
+    stopBits = 1
+    parity = "none"
+    flowControl = "none"
+    autoOpen = false
+  }
+
+  highlight {
+    enabled = true
+    ignoreCase = true
+    keywords = ["ERROR", "WARN", "OK"]
+  }
+
+  encode = "ASCII"
+  delimiter = "\r\n"
+
+  rules = [
+    { request = "AT\r\n", response = "OK\r\n" }
+  ]
 }
 ```
+
+### 串口网关
+
+```hocon
+gateway {
+  endpoints = [
+    { id = "devA", name = "Device A", port = "COM1", baudRate = 9600, dataBits = 8, stopBits = 1, parity = "none", flowControl = "none" },
+    { id = "devB", name = "Device B", port = "COM2", baudRate = 115200, dataBits = 8, stopBits = 1, parity = "none", flowControl = "none" }
+  ]
+
+  highlight {
+    enabled = true
+    ignoreCase = true
+    keywords = ["ERROR", "WARN", "A to B"]
+  }
+
+  routes = [
+    { name = "A to B", enabled = true, sources = ["devA"], targets = ["devB"] }
+  ]
+}
+```
+
+### 字段说明
 
 | 字段 | 说明 |
-|------|------|
-| `encode` | 编码格式：`UTF8`（默认）或 `HEX` |
-| `delimiter` | 分帧结束符（与 `packSize` 二选一） |
-| `packSize` | 定长分帧字节数（与 `delimiter` 二选一） |
-| 其余键值对 | 指令 → 应答 映射表 |
+| --- | --- |
+| `endpoint` / `endpoints` | 自动回复使用单个串口端点；网关使用多个端点 |
+| `routes` | 网关路由，`sources` 中任意端点收到数据后转发给 `targets` |
+| `highlight` | 日志关键词高亮配置，`keywords` 支持多个词 |
+| `encode` | `HEX` 表示十六进制；其他值当前按文本/UTF-8 处理，兼容 `ASCII` 写法 |
+| `packSize` | 固定长度分帧，单位为字节 |
+| `delimiter` | 分隔符分帧；HEX 模式下填写 HEX 字节，文本模式下填写普通字符串 |
+| `rules` | 自动回复规则，`request` 为接收内容，`response` 为回复内容 |
 
-**HEX 模式示例：**
-```json
-{
-  "encode": "HEX",
-  "packSize": "4",
-  "01 02 03 04": "AA BB CC DD"
-}
-```
+建议 `packSize` 和 `delimiter` 至少提供一个。后续可以把这部分改成 `@Serializable` 配置类，并对空分隔符、非法 HEX、重复映射等情况给出明确错误提示。
 
----
+## 构建与运行
 
-## 🛠️ 构建与运行
+环境建议：
 
-### 环境要求
+- JDK 17 或更高版本
+- 使用仓库自带 Gradle Wrapper，当前 Wrapper 指向 Gradle 9.4.0
 
-- JDK 17+
-- Gradle 9.x（Wrapper 已包含，无需手动安装）
+运行开发版：
 
-### 运行开发版
-
-```bash
-# Windows
+```powershell
 .\gradlew.bat :composeApp:run
-
-# macOS / Linux
-./gradlew :composeApp:run
 ```
 
-### 编译验证
+编译 Kotlin/JVM：
 
-```bash
-.\gradlew composeApp:compileKotlinJvm
+```powershell
+.\gradlew.bat :composeApp:compileKotlinJvm
 ```
 
-### 打包发布
+打包当前系统安装包：
 
-```bash
-# 生成对应平台的安装包（Windows: MSI, macOS: DMG, Linux: DEB）
-.\gradlew composeApp:packageDistributionForCurrentOS
+```powershell
+.\gradlew.bat :composeApp:packageDistributionForCurrentOS
 ```
 
----
+注意：当前 `composeApp/build.gradle.kts` 中 Windows 图标路径指向 `src/main/resources/icons/icon.ico`，仓库里暂未看到该文件。打包 Windows 安装包前需要补充图标文件，或把配置改到现有资源路径。
 
-## 📦 主要依赖
+## 主要依赖
 
-| 库 | 用途 |
-|----|------|
-| [Compose Multiplatform](https://www.jetbrains.com/lp/compose-multiplatform/) | UI 框架 |
-| [jSerialComm](https://github.com/Fazecast/jSerialComm) | 跨平台串口通信 |
-| [AndroidX ViewModel](https://developer.android.com/topic/libraries/architecture/viewmodel) | 生命周期感知状态管理 |
-| [Kotlinx Serialization](https://github.com/Kotlin/kotlinx.serialization) | JSON 解析（模拟器配置） |
-| [Kotlinx Coroutines](https://github.com/Kotlin/kotlinx.coroutines) | 异步任务调度 |
+| 依赖 | 用途 |
+| --- | --- |
+| Kotlin Multiplatform | 工程与 JVM target 配置 |
+| Compose Multiplatform | 桌面 UI |
+| Compose Material3 | 基础 UI 组件 |
+| jSerialComm | 跨平台串口通信 |
+| kotlinx.coroutines | 串口扫描、循环发送、异步任务 |
+| kotlinx.serialization-json | 设备模拟 JSON 解析 |
+| Typesafe Config | 自动回复和串口网关 `.conf` 解析 |
+| AndroidX Lifecycle ViewModel Compose | ViewModel 与 Compose 集成 |
 
----
+## 后续演进方向
 
-## 🎨 主题与国际化
+### 先对齐 JavaFX 行为
 
-### 主题
+- 让“保存发送 / 保存接收”真正控制 `.write` / `.read` 文件写入。
+- 新建窗口时复制当前窗口的串口参数、主题和语言，或明确设计为全新会话。
+- 按系统语言初始化默认文案，再允许用户循环切换。
+- 清理接收区、暂停实时显示、数据落盘、接收缓存之间的行为需要重新定义边界。
+- 设备模拟器重新加载时应移除旧监听器，避免重复挂载。
 
-基于 **Apple Cupertino 设计语言**，提供完整的浅色 / 深色双主题：
+### 再做 Compose/Kotlin 化
 
-- **浅色**：`#007AFF` 蓝 + 纯白表面 + `#F2F2F7` 背景
-- **深色**：`#0A84FF` 蓝 + `#1C1C1E` 表面 + 纯黑背景
+- 引入统一 `SerialUiState` 和 `SerialIntent`，减少 UI 直接修改多个 mutable state。
+- 把串口会话抽象成 `SerialSession`，隔离连接、配置、统计、日志、生命周期。
+- 把编码逻辑抽成 `Codec` 或 `SerialPayload`，统一处理 HEX、UTF-8、非法输入和显示格式。
+- 把设备模拟配置改成强类型 `@Serializable` 数据类，返回可展示的解析错误。
+- 使用 `StateFlow` 暴露 ViewModel 状态，让 Compose 层更接近单向数据流。
+- 给 `CircularArray`、HEX 转换、模拟器分帧、保存开关补单元测试。
 
-所有颜色切换均附带 **500ms 补间动画**（基于 `animateColorAsState`）。
+### 充分利用 Compose Multiplatform
 
-### 语言切换
+- 把纯业务逻辑放入 common 层：编解码、日志模型、模拟器配置、过滤规则、显示策略。
+- 把桌面串口实现留在 JVM 层：`jSerialComm`、文件选择器、窗口置顶、原生拖拽、打包配置。
+- UI 组件逐步做成可复用模块：连接参数面板、发送面板、日志面板、状态栏、模拟器配置面板。
+- 如果未来考虑 Android，需要单独实现 Android 串口/USB 后端，不应直接把 `jSerialComm` 放进 commonMain。
 
-通过顶部工具栏的 🌐 按钮循环切换：  
-**中文** → **English** → **日本語** → 中文 …
+## 当前已知问题
 
----
+- 保存发送/接收开关目前是 UI 状态，尚未参与 `DataWriteFile` 写入判断。
+- `DataWriteFile` 的协程作用域没有显式关闭，后续需要纳入会话生命周期。
+- 多窗口目前不会复制当前窗口配置。
+- `PortMonitor.stop()` 没有在应用退出时统一调用。
+- `SerialChart` 未接入主界面。
+- 当前仓库暂未包含 `LICENSE` 文件；如果要继承原 JavaFX 项目的 MIT License，需要在本仓库补充。
 
-## 📄 许可证
+## 原项目参考
 
-MIT License © 2026 yiaobang
+- 本地 JavaFX 项目：`D:\Code\JavaProjects\SerialPortToolFX`
+- 远程仓库：[yiaobang/SerialPortToolFX](https://github.com/yiaobang/SerialPortToolFX)
+- 原项目主要能力：串口收发、HEX/ASCII、实时显示、保存发送/接收、循环发送、多窗口、设备模拟、三语言、浅色/深色主题、jpackage 打包。

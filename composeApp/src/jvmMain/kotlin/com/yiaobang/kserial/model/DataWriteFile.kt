@@ -17,19 +17,9 @@ class DataWriteFile(private val serialPortName: String) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val dataDir = File("serial_port_data")
-    private val readFile: File
-    private val writeFile: File
-
-    init {
-        if (!dataDir.exists()) dataDir.mkdirs()
-
-        val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
-        readFile = File(dataDir, "$serialPortName-$timeStamp.read")
-        writeFile = File(dataDir, "$serialPortName-$timeStamp.write")
-
-        if (readFile.exists()) readFile.delete()
-        if (writeFile.exists()) writeFile.delete()
-    }
+    private val timeStamp = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
+    private val readFile by lazy { createSessionFile("read") }
+    private val writeFile by lazy { createSessionFile("write") }
 
     /** 记录收到的数据，以 HEX 格式追加到 .read 文件 */
     fun serialCommReceive(bytes: ByteArray) {
@@ -56,6 +46,17 @@ class DataWriteFile(private val serialPortName: String) {
                     StandardOpenOption.APPEND
                 )
             }
+        }
+    }
+
+    fun close() {
+        scope.cancel()
+    }
+
+    private fun createSessionFile(extension: String): File {
+        if (!dataDir.exists()) dataDir.mkdirs()
+        return File(dataDir, "$serialPortName-$timeStamp.$extension").also {
+            if (it.exists()) it.delete()
         }
     }
 }

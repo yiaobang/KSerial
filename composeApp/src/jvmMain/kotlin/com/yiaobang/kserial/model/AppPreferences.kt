@@ -34,6 +34,9 @@ class AppPreferences {
     /** 持久化保存接收数据 */
     var saveReceive by mutableStateOf(false)
 
+    /** 快捷发送模板，每行一条命令 */
+    var quickCommandsText by mutableStateOf("AT\\r\\n\nAT+VERSION\\r\\n")
+
     /** 窗口置顶状态 */
     var isAlwaysOnTop by mutableStateOf(false)
 
@@ -42,6 +45,12 @@ class AppPreferences {
 
     /** 当前语言 */
     var currentLanguage by mutableStateOf(Language.ZH)
+
+    /** 日志关键词高亮 */
+    val highlight = KeywordHighlightConfig()
+
+    /** 日志过滤与滚动控制 */
+    val logFilter = LogFilterConfig()
 
     /** 切换到下一种语言 */
     fun switchLanguage() {
