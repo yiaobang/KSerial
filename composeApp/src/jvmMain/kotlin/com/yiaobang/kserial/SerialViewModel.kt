@@ -18,7 +18,7 @@ import com.yiaobang.kserial.model.SerialPortConfig
 import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialComm
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
-import com.yiaobang.kserial.utils.hexToByteArray
+import com.yiaobang.kserial.utils.HexInputParser
 import com.yiaobang.kserial.utils.toHexString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -181,7 +181,16 @@ class SerialViewModel(
     /** 发送字符串或 HEX 至串口 */
     fun sendData(data: String) {
         if (!isPortOpen || data.isBlank()) return
-        val bytes = if (prefs.hexSend) data.hexToByteArray() ?: byteArrayOf() else data.toByteArray()
+        val bytes = if (prefs.hexSend) {
+            val result = HexInputParser.parse(data)
+            if (!result.isValid) {
+                addLog(result.error ?: "Invalid HEX input", LogType.INFO)
+                return
+            }
+            result.bytes ?: byteArrayOf()
+        } else {
+            data.toByteArray()
+        }
         if (bytes.isNotEmpty()) {
             val sent = serialComm.write(bytes)
             if (sent >= 0) {

@@ -63,6 +63,7 @@ import com.yiaobang.kserial.ui.LogFilterEditor
 import com.yiaobang.kserial.workspace.WindowHostState
 import com.yiaobang.kserial.workspace.WorkspaceSection
 import com.yiaobang.kserial.workspace.WorkspaceState
+import com.yiaobang.kserial.utils.HexInputParser
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -443,6 +444,9 @@ private fun DataDisplayPanel(
                 .background(colors.surface)
                 .border(1.dp, colors.border.copy(alpha = 0.78f), RoundedCornerShape(7.dp))
         ) {
+            val hexResult = remember(prefs.hexSend, viewModel.inputText) {
+                if (prefs.hexSend) HexInputParser.parse(viewModel.inputText) else null
+            }
             BasicTextField(
                 value = viewModel.inputText,
                 onValueChange = { viewModel.inputText = it },
@@ -450,6 +454,30 @@ private fun DataDisplayPanel(
                 textStyle = TextStyle(color = colors.onSurface, fontSize = 13.sp),
                 cursorBrush = SolidColor(colors.primary)
             )
+            if (hexResult != null) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .background(colors.surface.copy(alpha = 0.92f))
+                        .padding(horizontal = 8.dp, vertical = 5.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = hexResult.error ?: "${hexResult.byteCount} bytes",
+                        color = if (hexResult.isValid) colors.onSurface.copy(alpha = 0.58f) else colors.error,
+                        fontSize = 11.sp
+                    )
+                    TextButton(
+                        onClick = { if (hexResult.isValid) viewModel.inputText = hexResult.normalizedText },
+                        enabled = hexResult.isValid && viewModel.inputText.isNotBlank(),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text("FORMAT", fontSize = 11.sp)
+                    }
+                }
+            }
         }
     }
 }
