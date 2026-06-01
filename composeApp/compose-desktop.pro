@@ -12,3 +12,17 @@
 
 # 协程
 -dontwarn kotlinx.coroutines.internal.MainDispatcherLoader
+
+# Kotlin
+-dontwarn kotlin.**
+
+# Compose
+-dontwarn androidx.compose.**
+-dontwarn androidx.annotation.**
+
+# JDK
+-dontwarn java.lang.**
+-dontwarn jdk.internal.**
+
+# Metadata
+-keep class kotlin.Metadata { *; }

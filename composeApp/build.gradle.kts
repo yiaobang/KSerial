@@ -1,4 +1,7 @@
+@file:OptIn(ExperimentalKotlinGradlePluginApi::class)
+
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 
 plugins {
     alias(libs.plugins.kotlinMultiplatform)
@@ -9,6 +12,7 @@ plugins {
 }
 
 kotlin {
+    jvmToolchain(24)
     jvm {
         mainRun {
             mainClass.set("com.yiaobang.kserial.MainKt")
@@ -17,13 +21,13 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.foundation)
-            implementation(compose.material3)
-            implementation(compose.ui)
-            implementation(compose.components.resources)
-            implementation(compose.components.uiToolingPreview)
-            implementation(compose.materialIconsExtended)
+            val composeVersion = libs.versions.composeMultiplatform.get()
+            implementation("org.jetbrains.compose.runtime:runtime:$composeVersion")
+            implementation("org.jetbrains.compose.foundation:foundation:$composeVersion")
+            implementation("org.jetbrains.compose.ui:ui:$composeVersion")
+            implementation("org.jetbrains.compose.components:components-resources:$composeVersion")
+            implementation("org.jetbrains.compose.material3:material3:1.9.0")
+            implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.serialization.json)
@@ -66,6 +70,7 @@ compose {
                 targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
                 packageName = "KSerial"
                 packageVersion = "1.0.0"
+                buildTypes.release.proguard.isEnabled.set(false)
                 buildTypes{
                     release{
                         proguard {
