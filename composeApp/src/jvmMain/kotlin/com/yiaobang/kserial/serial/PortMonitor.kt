@@ -23,20 +23,25 @@ object PortMonitor {
      * 开启扫描任务 (如果已在运行则略过)
      * 模拟 Java 版的 PortMonitor.init()
      */
+    @Synchronized
     fun start() {
         if (scanJob != null) return
-        scanJob = scope.launch {
+        val job = scope.launch {
             while (isActive) {
-                // 调用 jSerialComm 获取最新的硬件端口列表
-                val ports = SerialPort.getCommPorts().map { it.systemPortName }
-                
-                // 仅在列表发生变化时更新状态，触发 UI 刷新
-                if (ports != _availablePorts.value) {
-                    _availablePorts.value = ports
+                runCatching {
+                    SerialPort.getCommPorts().map { it.systemPortName }
+                }.onSuccess { ports ->
+                    if (ports != _availablePorts.value) {
+                        _availablePorts.value = ports
+                    }
                 }
-                
-                // 每隔 2 秒扫描一次 (对齐 Java 版间隔)
                 delay(2000.milliseconds)
+            }
+        }
+        scanJob = job
+        job.invokeOnCompletion {
+            synchronized(this@PortMonitor) {
+                if (scanJob === job) scanJob = null
             }
         }
     }
@@ -44,6 +49,7 @@ object PortMonitor {
     /**
      * 停止扫描任务 (通常在应用退出时调用)
      */
+    @Synchronized
     fun stop() {
         scanJob?.cancel()
         scanJob = null

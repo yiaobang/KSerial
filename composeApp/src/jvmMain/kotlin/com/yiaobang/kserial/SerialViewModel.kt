@@ -29,6 +29,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.UUID
 
 /**
  * 串口视图模型类
@@ -77,7 +78,7 @@ class SerialViewModel(
     private var loopJob: Job? = null
     private var simulator: DeviceSimulator? = null
     private var simulatorListener: ((ByteArray) -> Unit)? = null
-    private val leaseOwner = "串口页面-${hashCode().toString(16)}"
+    private val leaseOwner = "串口页面-${UUID.randomUUID()}"
     private var leasedPort: String? = null
 
     init {
@@ -191,14 +192,20 @@ class SerialViewModel(
         } else {
             data.toByteArray()
         }
-        if (bytes.isNotEmpty()) {
-            val sent = serialComm.write(bytes)
-            if (sent >= 0) {
-                if (prefs.saveSend) recorder()?.serialCommSend(bytes)
-                txCount += sent
-                addLog(if (prefs.hexSend) bytes.toHexString() else data, LogType.TX)
-            }
+        val hexMode = prefs.hexSend
+        viewModelScope.launch { sendBytes(data, bytes, hexMode) }
+    }
+
+    private suspend fun sendBytes(source: String, bytes: ByteArray, hexMode: Boolean) {
+        if (bytes.isEmpty()) return
+        val sent = withContext(Dispatchers.IO) { serialComm.write(bytes) }
+        if (sent < 0) {
+            addLog("发送失败: 串口未连接或写入异常", LogType.INFO)
+            return
         }
+        if (prefs.saveSend) recorder()?.serialCommSend(bytes)
+        txCount += sent
+        addLog(if (hexMode) bytes.toHexString() else source, LogType.TX)
     }
 
     /** 加载自动回复配置文件 */
@@ -231,7 +238,7 @@ class SerialViewModel(
     /** 追加日志条目，最多保留 1000 条 */
     fun addLog(content: String, type: LogType) {
         val time = SimpleDateFormat("HH:mm:ss").format(Date())
-        if (logs.size > 1000) logs.removeAt(0)
+        if (logs.size >= 1000) logs.removeAt(0)
         logs.add(LogEntry(time, type, content))
     }
 
@@ -240,9 +247,27 @@ class SerialViewModel(
     fun startLoopSend() {
         stopLoopSend()
         if (prefs.loopSendEnabled && isPortOpen) {
-            loopJob = viewModelScope.launch(Dispatchers.IO) {
+            loopJob = viewModelScope.launch {
                 while (isActive) {
-                    if (inputText.isNotBlank()) sendData(inputText)
+                    val data = inputText
+                    if (data.isNotBlank()) {
+                        val hexMode = prefs.hexSend
+                        val parseResult = if (hexMode) HexInputParser.parse(data) else null
+                        if (parseResult != null && !parseResult.isValid) {
+                            prefs.loopSendEnabled = false
+                            addLog(
+                                "循环发送已停止: ${parseResult.error ?: "Invalid HEX input"}",
+                                LogType.INFO
+                            )
+                            break
+                        }
+                        val bytes = if (hexMode) {
+                            parseResult?.bytes ?: byteArrayOf()
+                        } else {
+                            data.toByteArray()
+                        }
+                        if (bytes.isNotEmpty()) sendBytes(data, bytes, hexMode)
+                    }
                     delay(prefs.loopInterval)
                 }
             }

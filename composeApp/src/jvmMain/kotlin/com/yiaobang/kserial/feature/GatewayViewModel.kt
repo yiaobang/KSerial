@@ -23,6 +23,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
+import java.util.UUID
 
 enum class GatewayMode(val label: String) {
     OneToOne("一对一"),
@@ -45,7 +46,7 @@ class GatewayEndpoint(
     var isOpen by mutableStateOf(false)
     var txCount by mutableLongStateOf(0L)
     var rxCount by mutableLongStateOf(0L)
-    val leaseOwner: String get() = "串口网关:$name"
+    val leaseOwner = "串口网关:$name:${UUID.randomUUID()}"
     var leasedPort: String? = null
 }
 
@@ -249,7 +250,7 @@ class GatewayViewModel : ViewModel() {
 
     private fun addLog(content: String, type: LogType) {
         val time = SimpleDateFormat("HH:mm:ss").format(Date())
-        if (logs.size > 1000) logs.removeAt(0)
+        if (logs.size >= 1000) logs.removeAt(0)
         logs.add(LogEntry(time, type, content))
     }
 

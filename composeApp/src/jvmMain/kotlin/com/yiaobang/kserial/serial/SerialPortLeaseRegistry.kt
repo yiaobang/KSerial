@@ -5,7 +5,7 @@ object SerialPortLeaseRegistry {
 
     @Synchronized
     fun acquire(portName: String, owner: String): Boolean {
-        val port = portName.trim()
+        val port = leaseKey(portName)
         if (port.isEmpty()) return false
         val currentOwner = leases[port]
         if (currentOwner != null && currentOwner != owner) return false
@@ -15,7 +15,7 @@ object SerialPortLeaseRegistry {
 
     @Synchronized
     fun release(portName: String, owner: String) {
-        val port = portName.trim()
+        val port = leaseKey(portName)
         if (leases[port] == owner) {
             leases.remove(port)
         }
@@ -23,6 +23,16 @@ object SerialPortLeaseRegistry {
 
     @Synchronized
     fun ownerOf(portName: String): String? {
-        return leases[portName.trim()]
+        return leases[leaseKey(portName)]
+    }
+
+    @Synchronized
+    fun clear() {
+        leases.clear()
+    }
+
+    private fun leaseKey(portName: String): String {
+        val trimmed = portName.trim()
+        return if (trimmed.matches(Regex("COM\\d+", RegexOption.IGNORE_CASE))) trimmed.uppercase() else trimmed
     }
 }

@@ -4,8 +4,8 @@ import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 import com.yiaobang.kserial.serial.SerialComm
 import com.yiaobang.kserial.utils.hexToByteArray
+import com.yiaobang.kserial.utils.toHexString
 import com.yiaobang.kserial.utils.toUtf8ByteArray
-import com.yiaobang.kserial.utils.toUtf8String
 import kotlinx.serialization.json.*
 import java.io.File
 
@@ -25,7 +25,7 @@ abstract class DeviceSimulator(protected val replies: Map<String, ByteArray>) : 
      * 核心回复逻辑：根据收到的数据，在应答表中查找并发送对应回复
      */
     protected fun reply(bytes: ByteArray) {
-        val request = bytes.toUtf8String()
+        val request = bytes.toHexString()
         val replyData = replies[request]
         if (replyData != null) {
             serialComm?.write(replyData)
@@ -96,26 +96,26 @@ abstract class DeviceSimulator(protected val replies: Map<String, ByteArray>) : 
                     val kBytes = k.hexToByteArray()
                     val vBytes = v.hexToByteArray()
                     if (kBytes != null && vBytes != null) {
-                        replies[kBytes.toUtf8String()] = vBytes
+                        replies[kBytes.toHexString()] = vBytes
                     }
                 }
                 if (replies.isEmpty()) return null
-                val packSize = packSizeStr.toIntOrNull()
+                val packSize = packSizeStr.toIntOrNull()?.takeIf { it in 1..4096 }
                 if (packSize != null) {
                     FixedLengthSimulator(replies, packSize)
                 } else {
-                    val delimiter = delimiterStr.hexToByteArray()?.takeIf { it.isNotEmpty() } ?: return null
+                    val delimiter = delimiterStr.hexToByteArray()?.takeIf { it.isNotEmpty() && it.size <= 4096 } ?: return null
                     DelimiterBasedSimulator(replies, delimiter)
                 }
             } else {
                 rawMaps.forEach { (k, v) ->
-                    replies[k] = v.toUtf8ByteArray()
+                    replies[k.toUtf8ByteArray().toHexString()] = v.toUtf8ByteArray()
                 }
-                val packSize = packSizeStr.toIntOrNull()
+                val packSize = packSizeStr.toIntOrNull()?.takeIf { it in 1..4096 }
                 if (packSize != null) {
                     FixedLengthSimulator(replies, packSize)
                 } else {
-                    val delimiter = delimiterStr.toUtf8ByteArray().takeIf { it.isNotEmpty() } ?: return null
+                    val delimiter = delimiterStr.toUtf8ByteArray().takeIf { it.isNotEmpty() && it.size <= 4096 } ?: return null
                     DelimiterBasedSimulator(replies, delimiter)
                 }
             }

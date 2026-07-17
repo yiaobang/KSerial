@@ -8,6 +8,8 @@ import androidx.compose.runtime.setValue
 import com.yiaobang.kserial.SerialViewModel
 import com.yiaobang.kserial.feature.GatewayViewModel
 import com.yiaobang.kserial.model.AppPreferences
+import com.yiaobang.kserial.serial.PortMonitor
+import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
 
 private const val MAIN_HOST_ID = 0
 
@@ -216,6 +218,8 @@ class WorkspaceState {
         tabs.clear()
         mainHost.tabIds.clear()
         floatingHosts.clear()
+        PortMonitor.stop()
+        SerialPortLeaseRegistry.clear()
     }
 
     private fun createSerialViewModel(
