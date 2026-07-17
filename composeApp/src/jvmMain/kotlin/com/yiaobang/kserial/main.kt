@@ -1,6 +1,7 @@
 package com.yiaobang.kserial
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -102,23 +103,32 @@ private fun InstallWindowBehavior(
         }
     }
 
-    remember(window) {
+    DisposableEffect(window) {
         val adapter = object : MouseAdapter() {
             private var dragStart = Point()
+            private var dragging = false
 
             override fun mousePressed(e: MouseEvent) {
-                if (e.y <= 40) dragStart = e.point
+                dragging = e.y <= 40
+                if (dragging) dragStart = e.point
             }
 
             override fun mouseDragged(e: MouseEvent) {
-                if (e.y <= 40) {
+                if (dragging) {
                     val loc = window.location
                     window.setLocation(loc.x + e.x - dragStart.x, loc.y + e.y - dragStart.y)
                 }
             }
+
+            override fun mouseReleased(e: MouseEvent) {
+                dragging = false
+            }
         }
         window.addMouseListener(adapter)
         window.addMouseMotionListener(adapter)
-        adapter
+        onDispose {
+            window.removeMouseListener(adapter)
+            window.removeMouseMotionListener(adapter)
+        }
     }
 }

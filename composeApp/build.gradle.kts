@@ -43,6 +43,9 @@ kotlin {
             //配置
             implementation(libs.typesafe.config)
         }
+        jvmTest.dependencies {
+            implementation(libs.kotlin.testJunit)
+        }
     }
 }
 compose {
@@ -62,8 +65,8 @@ compose {
             jvmArgs(
                 "-Dsun.java2d.d3d=true",
                 "-Dskiko.renderApi=DIRECT3D",
-                "-XX:+UseZGC",             // 使用 ZGC 降低停顿
-                "-Xmx2G",                   // 给足内存
+                "-Xms64m",
+                "-Xmx512m",
                 "--enable-native-access=ALL-UNNAMED"
             )
             nativeDistributions {
@@ -89,8 +92,8 @@ compose {
                     jvmArgs(
                         "-Dsun.java2d.d3d=true",
                         "-Dskiko.renderApi=DIRECT3D",
-                        "-XX:+UseZGC",             // 使用 ZGC 降低停顿
-                        "-Xmx2G",                   // 给足内存
+                        "-Xms64m",
+                        "-Xmx512m",
                         "--enable-native-access=ALL-UNNAMED"
                     )
                 }

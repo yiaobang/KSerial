@@ -6,6 +6,7 @@ import com.fazecast.jSerialComm.SerialPortEvent
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import java.io.OutputStream
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * 串口通信核心类
@@ -24,7 +25,7 @@ class SerialComm : SerialPortDataListener {
     private var outputStream: OutputStream? = null
 
     /** 外部数据监听器列表（解耦模拟器、持久化等关注方） */
-    private val dataListeners = mutableListOf<(ByteArray) -> Unit>()
+    private val dataListeners = CopyOnWriteArrayList<(ByteArray) -> Unit>()
 
     /** 注册数据到达监听器 */
     fun addDataListener(listener: (ByteArray) -> Unit) {
@@ -55,28 +56,24 @@ class SerialComm : SerialPortDataListener {
      */
     override fun serialEvent(event: SerialPortEvent) {
         if (event.eventType != SerialPort.LISTENING_EVENT_DATA_AVAILABLE) return
-        val port = event.serialPort
+        val data = runCatching {
+            val port = event.serialPort
+            val available = port.bytesAvailable()
+            if (available <= 0) return
+            val buffer = ByteArray(available)
+            val len = port.readBytes(buffer, buffer.size)
+            if (len <= 0) return
+            buffer.copyOfRange(0, len)
+        }.getOrNull() ?: return
 
-        val available = port.bytesAvailable()
-        if (available <= 0) return
-
-        val buffer = ByteArray(available)
-        val len = port.readBytes(buffer, buffer.size)
-
-        if (len > 0) {
-            val data = buffer.copyOfRange(0, len)
-
-            // 通知所有外部监听器（模拟器、持久化等）
-            dataListeners.forEach { it(data) }
-
-            // 向 Flow 发射数据供 UI 解析
-            _dataFlow.tryEmit(data)
-        }
+        dataListeners.forEach { listener -> runCatching { listener(data) } }
+        _dataFlow.tryEmit(data)
     }
 
     /**
      * 打开物理串口并配置参数
      */
+    @Synchronized
     fun openPort(
         portName: String,
         baudRate: Int,
@@ -88,8 +85,9 @@ class SerialComm : SerialPortDataListener {
         // 先清理旧连接，确保逻辑幂等
         closePort()
 
-        serialPort = SerialPort.getCommPort(portName)
-        serialPort?.let { port ->
+        return try {
+            val port = SerialPort.getCommPort(portName)
+            serialPort = port
             val stopBits = when (stopBitsIndex) {
                 1 -> SerialPort.ONE_POINT_FIVE_STOP_BITS
                 2 -> SerialPort.TWO_STOP_BITS
@@ -113,17 +111,22 @@ class SerialComm : SerialPortDataListener {
 
             port.setComPortParameters(baudRate, dataBits, stopBits, parity)
             port.setFlowControl(flowControl)
-            port.addDataListener(this)
-
-            if (port.openPort()) {
+            if (!port.openPort()) {
+                closePort()
+                false
+            } else {
+                port.addDataListener(this)
                 outputStream = port.outputStream
-                return true
+                true
             }
+        } catch (_: Exception) {
+            closePort()
+            false
         }
-        return false
     }
 
     /** 释放串口资源 */
+    @Synchronized
     fun closePort() {
         serialPort?.let {
             it.removeDataListener()
@@ -134,10 +137,13 @@ class SerialComm : SerialPortDataListener {
     }
 
     /** 发送同步数据字节，返回发送字节数，失败返回 -1 */
+    @Synchronized
     fun write(data: ByteArray): Int {
+        if (data.isEmpty()) return 0
+        val stream = outputStream ?: return -1
         return try {
-            outputStream?.write(data)
-            outputStream?.flush()
+            stream.write(data)
+            stream.flush()
             data.size
         } catch (_: Exception) {
             -1
