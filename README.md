@@ -1,6 +1,6 @@
 # KSerial
 
-KSerial 是一个基于 Kotlin 和 Compose Multiplatform 的桌面串口调试工具。项目当前处在从 JavaFX 版本迁移到 Compose Multiplatform 的阶段，现有界面布局和业务能力主要来源于原项目 [SerialPortToolFX](https://github.com/yiaobang/SerialPortToolFX)，本地对照项目路径为 `D:\Code\JavaProjects\SerialPortToolFX`。
+KSerial 是一个基于 Kotlin 和 Compose Multiplatform 的桌面串口调试工具。项目当前处在从 JavaFX 版本迁移到 Compose Multiplatform 的阶段，现有界面布局和业务能力主要来源于原项目 [SerialPortToolFX](https://github.com/yiaobang/SerialPortToolFX)。
 
 这个仓库的目标不是只把 JavaFX UI 机械翻译成 Compose，而是在保留原有串口调试能力的基础上，逐步利用 Kotlin、协程、Flow、Compose 状态模型和跨平台工程结构，把项目整理成更适合长期维护和扩展的串口工具。
 
@@ -269,6 +269,5 @@ gateway {
 
 ## 原项目参考
 
-- 本地 JavaFX 项目：`D:\Code\JavaProjects\SerialPortToolFX`
-- 远程仓库：[yiaobang/SerialPortToolFX](https://github.com/yiaobang/SerialPortToolFX)
+- 原项目仓库：[yiaobang/SerialPortToolFX](https://github.com/yiaobang/SerialPortToolFX)
 - 原项目主要能力：串口收发、HEX/ASCII、实时显示、保存发送/接收、循环发送、多窗口、设备模拟、三语言、浅色/深色主题、jpackage 打包。
