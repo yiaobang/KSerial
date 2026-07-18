@@ -34,7 +34,6 @@ KSerial 是一个基于 Kotlin 和 Compose Multiplatform 的桌面串口调试�
 | 数据落盘 | 初版实现 | `保存发送` / `保存接收` 开关会按需创建 `.write` / `.read` 文件并写入 HEX 数据 |
 | 多语言 | 已实现基础版 | 内置中文、英文、日文，通过顶部按钮循环切换；当前默认中文，尚未按系统语言初始化 |
 | 主题 | 已实现 | 自定义 Cupertino 风格浅色/深色主题，颜色切换使用 Compose 动画 |
-| 波形图 | 代码存在但未接入 | `SerialChart` 已存在，当前主界面还没有实际使用 |
 
 ## 与 JavaFX 原项目的对比
 
@@ -58,7 +57,9 @@ KSerial 是一个基于 Kotlin 和 Compose Multiplatform 的桌面串口调试�
 
 ```text
 KSerial
+├─ .github/workflows/release.yml
 ├─ build.gradle.kts
+├─ gradle.properties
 ├─ settings.gradle.kts
 ├─ gradle/libs.versions.toml
 └─ composeApp
@@ -91,8 +92,7 @@ KSerial
          ├─ ui
          │  ├─ ControlPanel.kt
          │  ├─ TopBar.kt
-         │  ├─ StatusBar.kt
-         │  └─ SerialChart.kt
+         │  └─ StatusBar.kt
          └─ utils
             └─ ByteArrayExt.kt
 ```
@@ -201,8 +201,8 @@ gateway {
 
 环境建议：
 
-- JDK 17 或更高版本
-- 使用仓库自带 Gradle Wrapper，当前 Wrapper 指向 Gradle 9.4.0
+- JDK 24
+- 使用仓库自带 Gradle Wrapper
 
 运行开发版：
 
@@ -222,7 +222,38 @@ gateway {
 .\gradlew.bat :composeApp:packageDistributionForCurrentOS
 ```
 
-注意：当前 `composeApp/build.gradle.kts` 中 Windows 图标路径指向 `src/main/resources/icons/icon.ico`，仓库里暂未看到该文件。打包 Windows 安装包前需要补充图标文件，或把配置改到现有资源路径。
+### GitHub 自动发布
+
+应用版本统一由 `gradle.properties` 中的 `appVersion` 管理，格式必须为三段数字，例如 `1.2.0`。
+
+满足以下任一条件时，GitHub Actions 会自动构建并发布：
+
+- 向 `master` 推送，并且本次推送中的任意提交消息包含 `version` 关键字；
+- 推送与 `appVersion` 一致的 `v*` 标签，例如 `v1.2.0`；
+- 在 GitHub Actions 页面手动运行 `Build and Release`。
+
+```powershell
+# 先修改 gradle.properties 中的 appVersion
+git commit -m "version: 1.2.0"
+git push origin master
+```
+
+也可以通过标签发布：
+
+```powershell
+git tag -a v1.2.0 -m "KSerial 1.2.0"
+git push origin v1.2.0
+```
+
+发布产物会上传到对应的 `v1.2.0` GitHub Release：
+
+| 系统 | 安装包 | 绿色包 |
+| --- | --- | --- |
+| Windows | `.msi`、`.exe` | `.zip` |
+| macOS | `.dmg`、`.pkg` | `.zip` |
+| Linux | `.deb`、`.rpm` | `.tar.gz` |
+
+当前安装包未配置 Windows 代码签名和 macOS 签名/公证，首次运行时系统可能显示安全提示。
 
 ## 主要依赖
 
@@ -262,7 +293,6 @@ gateway {
 
 ## 当前已知问题
 
-- `SerialChart` 未接入主界面。
 - 自动回复和网关配置目前仍由 ViewModel 直接读取，后续适合抽成强类型配置模型和独立校验器。
 - 当前缺少串口通信、分帧、路由、配置校验的自动化测试。
 - 当前仓库暂未包含 `LICENSE` 文件；如果要继承原 JavaFX 项目的 MIT License，需要在本仓库补充。
