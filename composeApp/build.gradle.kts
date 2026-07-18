@@ -63,16 +63,21 @@ compose {
         application {
             mainClass = "com.yiaobang.kserial.MainKt"
             jvmArgs(
-                "-Dsun.java2d.d3d=true",
-                "-Dskiko.renderApi=DIRECT3D",
                 "-Xms64m",
                 "-Xmx512m",
                 "--enable-native-access=ALL-UNNAMED"
             )
             nativeDistributions {
-                targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
+                targetFormats(
+                    TargetFormat.Msi,
+                    TargetFormat.Exe,
+                    TargetFormat.Dmg,
+                    TargetFormat.Pkg,
+                    TargetFormat.Deb,
+                    TargetFormat.Rpm
+                )
                 packageName = "KSerial"
-                packageVersion = "1.0.0"
+                packageVersion = providers.gradleProperty("appVersion").get()
                 buildTypes.release.proguard.isEnabled.set(false)
                 buildTypes{
                     release{

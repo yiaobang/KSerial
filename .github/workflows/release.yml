@@ -1,0 +1,211 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+concurrency:
+  group: kserial-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      contains(join(github.event.commits.*.message, ' '), 'version')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Read and validate version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^appVersion=//p' gradle.properties | tr -d '\r')"
+          if [[ ! "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "appVersion must use the x.y.z numeric format, got: $version" >&2
+            exit 1
+          fi
+          if [[ "$GITHUB_REF_TYPE" == "tag" && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match appVersion $version." >&2
+            exit 1
+          fi
+          echo "value=$version" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: windows
+          - os: macos-latest
+            platform: macos
+          - os: ubuntu-latest
+            platform: linux
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Set up JDK 24
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "24"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Make Gradle wrapper executable
+        if: runner.os != 'Windows'
+        shell: bash
+        run: chmod +x ./gradlew
+
+      - name: Install RPM packaging tools
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes rpm
+
+      - name: Test and package on Windows
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: >-
+          .\gradlew.bat
+          :composeApp:jvmTest
+          :composeApp:packageReleaseDistributionForCurrentOS
+          :composeApp:createReleaseDistributable
+          --no-daemon
+          --stacktrace
+
+      - name: Test and package on macOS or Linux
+        if: runner.os != 'Windows'
+        shell: bash
+        run: >-
+          ./gradlew
+          :composeApp:jvmTest
+          :composeApp:packageReleaseDistributionForCurrentOS
+          :composeApp:createReleaseDistributable
+          --no-daemon
+          --stacktrace
+
+      - name: Prepare Windows assets
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '${{ needs.prepare.outputs.version }}'
+          $arch = $env:RUNNER_ARCH.ToLowerInvariant()
+          New-Item -ItemType Directory -Path release-assets -Force | Out-Null
+
+          foreach ($extension in @('msi', 'exe')) {
+            $installer = Get-ChildItem "composeApp/build/compose/binaries/main-release/$extension" -Filter "*.$extension" | Select-Object -First 1
+            if (-not $installer) { throw "Windows .$extension installer was not produced." }
+            Copy-Item -LiteralPath $installer.FullName -Destination "release-assets/KSerial-$version-windows-$arch.$extension"
+          }
+
+          $appDir = Get-ChildItem 'composeApp/build/compose/binaries/main-release/app' -Directory | Select-Object -First 1
+          if (-not $appDir) { throw 'Windows portable distribution was not produced.' }
+          Compress-Archive -LiteralPath $appDir.FullName -DestinationPath "release-assets/KSerial-$version-windows-$arch-portable.zip" -CompressionLevel Optimal
+
+      - name: Prepare macOS assets
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.prepare.outputs.version }}'
+          arch="$(printf '%s' "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          mkdir -p release-assets
+
+          for extension in dmg pkg; do
+            installer="$(find "composeApp/build/compose/binaries/main-release/$extension" -maxdepth 1 -type f -name "*.$extension" -print -quit)"
+            test -n "$installer" || { echo "macOS .$extension installer was not produced." >&2; exit 1; }
+            cp "$installer" "release-assets/KSerial-$version-macos-$arch.$extension"
+          done
+
+          app_dir="$(find 'composeApp/build/compose/binaries/main-release/app' -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          test -n "$app_dir" || { echo 'macOS portable distribution was not produced.' >&2; exit 1; }
+          ditto -c -k --sequesterRsrc --keepParent "$app_dir" "release-assets/KSerial-$version-macos-$arch-portable.zip"
+
+      - name: Prepare Linux assets
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          set -euo pipefail
+          version='${{ needs.prepare.outputs.version }}'
+          arch="$(printf '%s' "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
+          mkdir -p release-assets
+
+          for extension in deb rpm; do
+            installer="$(find "composeApp/build/compose/binaries/main-release/$extension" -maxdepth 1 -type f -name "*.$extension" -print -quit)"
+            test -n "$installer" || { echo "Linux .$extension installer was not produced." >&2; exit 1; }
+            cp "$installer" "release-assets/KSerial-$version-linux-$arch.$extension"
+          done
+
+          app_dir="$(find 'composeApp/build/compose/binaries/main-release/app' -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          test -n "$app_dir" || { echo 'Linux portable distribution was not produced.' >&2; exit 1; }
+          tar -C "$(dirname "$app_dir")" -czf "release-assets/KSerial-$version-linux-$arch-portable.tar.gz" "$(basename "$app_dir")"
+
+      - name: Upload platform artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: KSerial-${{ matrix.platform }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    needs:
+      - prepare
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: KSerial-*
+          path: release-assets
+          merge-multiple: true
+
+      - name: Generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd release-assets
+          sha256sum KSerial-* > SHA256SUMS.txt
+
+      - name: Create or update GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$tag" release-assets/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$tag" release-assets/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "KSerial $tag" \
+              --generate-notes
+          fi
