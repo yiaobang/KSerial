@@ -3,77 +3,7 @@ package com.yiaobang.kserial.i18n
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
-import com.yiaobang.kserial.resources.Res
-import com.yiaobang.kserial.resources.btn_analog_reply
-import com.yiaobang.kserial.resources.btn_clear_counters
-import com.yiaobang.kserial.resources.btn_clear_log
-import com.yiaobang.kserial.resources.btn_clear_receive
-import com.yiaobang.kserial.resources.btn_clear_send
-import com.yiaobang.kserial.resources.btn_close
-import com.yiaobang.kserial.resources.btn_close_port
-import com.yiaobang.kserial.resources.btn_load_config
-import com.yiaobang.kserial.resources.btn_new_window
-import com.yiaobang.kserial.resources.btn_open
-import com.yiaobang.kserial.resources.btn_open_port
-import com.yiaobang.kserial.resources.btn_reload_config
-import com.yiaobang.kserial.resources.btn_reset_log_filter
-import com.yiaobang.kserial.resources.btn_send_data
-import com.yiaobang.kserial.resources.empty_create_page
-import com.yiaobang.kserial.resources.gateway_config_dialog_title
-import com.yiaobang.kserial.resources.gateway_mode_many_to_many
-import com.yiaobang.kserial.resources.gateway_mode_one_to_many
-import com.yiaobang.kserial.resources.gateway_mode_one_to_one
-import com.yiaobang.kserial.resources.label_baud_rate
-import com.yiaobang.kserial.resources.label_data_bits
-import com.yiaobang.kserial.resources.label_flow_control
-import com.yiaobang.kserial.resources.label_interval
-import com.yiaobang.kserial.resources.keyword_separator_hint
-import com.yiaobang.kserial.resources.label_mode
-import com.yiaobang.kserial.resources.label_ms
-import com.yiaobang.kserial.resources.label_parity
-import com.yiaobang.kserial.resources.label_rule
-import com.yiaobang.kserial.resources.label_rx
-import com.yiaobang.kserial.resources.label_serial_port
-import com.yiaobang.kserial.resources.label_source
-import com.yiaobang.kserial.resources.label_status_port
-import com.yiaobang.kserial.resources.label_status_sim
-import com.yiaobang.kserial.resources.label_stop_bits
-import com.yiaobang.kserial.resources.label_target
-import com.yiaobang.kserial.resources.label_tx
-import com.yiaobang.kserial.resources.load_gateway_config_hint
-import com.yiaobang.kserial.resources.log_count
-import com.yiaobang.kserial.resources.no_gateway_config
-import com.yiaobang.kserial.resources.not_configured
-import com.yiaobang.kserial.resources.not_selected
-import com.yiaobang.kserial.resources.opt_enable
-import com.yiaobang.kserial.resources.opt_hex_display
-import com.yiaobang.kserial.resources.opt_hex_send
-import com.yiaobang.kserial.resources.opt_ignore_case
-import com.yiaobang.kserial.resources.opt_loop_send
-import com.yiaobang.kserial.resources.opt_auto_scroll
-import com.yiaobang.kserial.resources.opt_only_matches
-import com.yiaobang.kserial.resources.opt_real_time
-import com.yiaobang.kserial.resources.opt_save_receive
-import com.yiaobang.kserial.resources.opt_save_send
-import com.yiaobang.kserial.resources.panel_actions
-import com.yiaobang.kserial.resources.panel_config
-import com.yiaobang.kserial.resources.panel_connection
-import com.yiaobang.kserial.resources.panel_endpoint
-import com.yiaobang.kserial.resources.panel_highlight
-import com.yiaobang.kserial.resources.panel_log
-import com.yiaobang.kserial.resources.panel_options
-import com.yiaobang.kserial.resources.panel_quick_send
-import com.yiaobang.kserial.resources.panel_route
-import com.yiaobang.kserial.resources.panel_simulator
-import com.yiaobang.kserial.resources.quick_send_empty
-import com.yiaobang.kserial.resources.quick_send_hint
-import com.yiaobang.kserial.resources.search_log
-import com.yiaobang.kserial.resources.search_prefix
-import com.yiaobang.kserial.resources.section_basic
-import com.yiaobang.kserial.resources.section_gateway
-import com.yiaobang.kserial.resources.section_simulator
-import com.yiaobang.kserial.resources.simulator_config_dialog_title
-import com.yiaobang.kserial.resources.workspace
+import com.yiaobang.kserial.resources.*
 import org.jetbrains.compose.resources.stringResource
 import java.util.Locale
 
@@ -89,6 +19,14 @@ enum class Language(
     fun applyAsDefaultLocale() {
         Locale.setDefault(Locale.forLanguageTag(languageTag))
     }
+
+    companion object {
+        fun fromLocale(locale: Locale = Locale.getDefault()): Language = when (locale.language.lowercase(Locale.ROOT)) {
+            "ja" -> JA
+            "zh" -> ZH
+            else -> EN
+        }
+    }
 }
 
 data class AppStrings(
@@ -97,12 +35,16 @@ data class AppStrings(
     val sectionSimulator: String,
     val sectionGateway: String,
     val emptyCreatePage: String,
+    val emptyLog: String,
+    val sendInputHint: String,
     val panelConnection: String,
     val panelActions: String,
     val panelQuickSend: String,
     val panelOptions: String,
     val panelHighlight: String,
     val panelLog: String,
+    val panelSendHistory: String,
+    val panelProtocolTools: String,
     val panelConfig: String,
     val panelSimulator: String,
     val panelRoute: String,
@@ -113,6 +55,7 @@ data class AppStrings(
     val labelStopBits: String,
     val labelParity: String,
     val labelFlowControl: String,
+    val labelAdvancedSerialParameters: String,
     val stopBitsOptions: List<String>,
     val parityOptions: List<String>,
     val flowControlOptions: List<String>,
@@ -130,6 +73,14 @@ data class AppStrings(
     val btnResetLogFilter: String,
     val btnOpen: String,
     val btnClose: String,
+    val btnFormatHex: String,
+    val btnClearHistory: String,
+    val btnAppendChecksum: String,
+    val btnCopyLogs: String,
+    val btnExportText: String,
+    val btnExportCsv: String,
+    val btnConfirm: String,
+    val btnCancel: String,
     val optRealTime: String,
     val optHexDisplay: String,
     val optHexSend: String,
@@ -152,6 +103,19 @@ data class AppStrings(
     val labelTarget: String,
     val quickSendEmpty: String,
     val quickSendHint: String,
+    val historyEmpty: String,
+    val historyKeyboardHint: String,
+    val actionUseHistory: String,
+    val actionAddQuick: String,
+    val actionRemoveHistory: String,
+    val labelChecksum: String,
+    val labelFrameMode: String,
+    val labelFrameSize: String,
+    val labelDelimiter: String,
+    val frameModeFixed: String,
+    val frameModeDelimiter: String,
+    val checksumUnavailable: String,
+    val frameUnavailable: String,
     val searchLog: String,
     val keywordSeparatorHint: String,
     val notConfigured: String,
@@ -163,13 +127,46 @@ data class AppStrings(
     val gatewayModeOneToOne: String,
     val gatewayModeOneToMany: String,
     val gatewayModeManyToMany: String,
+    val statusConnected: String,
+    val statusDisconnected: String,
+    val errorLoopInterval: String,
+    val actionPinWindow: String,
+    val actionLanguage: String,
+    val actionTheme: String,
+    val actionMinimize: String,
+    val actionCloseWindow: String,
+    val actionNewTab: String,
+    val actionDetachTab: String,
+    val actionMergeTab: String,
+    val actionCloseTab: String,
+    val actionExpand: String,
+    val actionCollapse: String,
+    val actionCopyRow: String,
+    val actionCopyContent: String,
+    val actionClearLogs: String,
+    val confirmClearLogsTitle: String,
+    val confirmClearLogsMessage: String,
+    val exportLogsDialogTitle: String,
+    val logsCopied: String,
+    val configValid: String,
     private val logCountPattern: String,
     private val searchPrefixPattern: String,
-    private val panelEndpointPattern: String
+    private val panelEndpointPattern: String,
+    private val connectionSummaryPattern: String,
+    private val checksumResultPattern: String,
+    private val frameResultPattern: String,
+    private val logsExportedPattern: String,
+    private val operationFailedPattern: String
 ) {
     fun logCount(visible: Int, total: Int): String = logCountPattern.formatLocalized(visible, total)
     fun searchPrefix(query: String): String = searchPrefixPattern.formatLocalized(query)
     fun panelEndpoint(name: String): String = panelEndpointPattern.formatLocalized(name)
+    fun connectionSummary(baudRate: Int, frameFormat: String, flowControl: String): String =
+        connectionSummaryPattern.formatLocalized(baudRate, frameFormat, flowControl)
+    fun checksumResult(value: String): String = checksumResultPattern.formatLocalized(value)
+    fun frameResult(frameCount: Int, remainingBytes: Int): String = frameResultPattern.formatLocalized(frameCount, remainingBytes)
+    fun logsExported(path: String): String = logsExportedPattern.formatLocalized(path)
+    fun operationFailed(reason: String): String = operationFailedPattern.formatLocalized(reason)
 }
 
 private fun String.formatLocalized(vararg args: Any): String = String.format(Locale.getDefault(), this, *args)
@@ -196,12 +193,16 @@ private fun appStringsFromResources(): AppStrings {
         sectionSimulator = stringResource(Res.string.section_simulator),
         sectionGateway = stringResource(Res.string.section_gateway),
         emptyCreatePage = stringResource(Res.string.empty_create_page),
+        emptyLog = stringResource(Res.string.empty_log),
+        sendInputHint = stringResource(Res.string.send_input_hint),
         panelConnection = stringResource(Res.string.panel_connection),
         panelActions = stringResource(Res.string.panel_actions),
         panelQuickSend = stringResource(Res.string.panel_quick_send),
         panelOptions = stringResource(Res.string.panel_options),
         panelHighlight = stringResource(Res.string.panel_highlight),
         panelLog = stringResource(Res.string.panel_log),
+        panelSendHistory = stringResource(Res.string.panel_send_history),
+        panelProtocolTools = stringResource(Res.string.panel_protocol_tools),
         panelConfig = stringResource(Res.string.panel_config),
         panelSimulator = stringResource(Res.string.panel_simulator),
         panelRoute = stringResource(Res.string.panel_route),
@@ -212,9 +213,21 @@ private fun appStringsFromResources(): AppStrings {
         labelStopBits = stringResource(Res.string.label_stop_bits),
         labelParity = stringResource(Res.string.label_parity),
         labelFlowControl = stringResource(Res.string.label_flow_control),
+        labelAdvancedSerialParameters = stringResource(Res.string.label_advanced_serial_parameters),
         stopBitsOptions = listOf("1", "1.5", "2"),
-        parityOptions = listOf("None", "Odd", "Even", "Mark", "Space"),
-        flowControlOptions = listOf("None", "RTS/CTS", "DSR/DTR", "XON/XOFF"),
+        parityOptions = listOf(
+            stringResource(Res.string.option_none),
+            stringResource(Res.string.option_odd),
+            stringResource(Res.string.option_even),
+            stringResource(Res.string.option_mark),
+            stringResource(Res.string.option_space)
+        ),
+        flowControlOptions = listOf(
+            stringResource(Res.string.option_none),
+            "RTS/CTS",
+            "DSR/DTR",
+            "XON/XOFF"
+        ),
         btnOpenPort = stringResource(Res.string.btn_open_port),
         btnClosePort = stringResource(Res.string.btn_close_port),
         btnClearReceive = stringResource(Res.string.btn_clear_receive),
@@ -229,6 +242,14 @@ private fun appStringsFromResources(): AppStrings {
         btnResetLogFilter = stringResource(Res.string.btn_reset_log_filter),
         btnOpen = stringResource(Res.string.btn_open),
         btnClose = stringResource(Res.string.btn_close),
+        btnFormatHex = stringResource(Res.string.btn_format_hex),
+        btnClearHistory = stringResource(Res.string.btn_clear_history),
+        btnAppendChecksum = stringResource(Res.string.btn_append_checksum),
+        btnCopyLogs = stringResource(Res.string.btn_copy_logs),
+        btnExportText = stringResource(Res.string.btn_export_text),
+        btnExportCsv = stringResource(Res.string.btn_export_csv),
+        btnConfirm = stringResource(Res.string.btn_confirm),
+        btnCancel = stringResource(Res.string.btn_cancel),
         optRealTime = stringResource(Res.string.opt_real_time),
         optHexDisplay = stringResource(Res.string.opt_hex_display),
         optHexSend = stringResource(Res.string.opt_hex_send),
@@ -251,6 +272,19 @@ private fun appStringsFromResources(): AppStrings {
         labelTarget = stringResource(Res.string.label_target),
         quickSendEmpty = stringResource(Res.string.quick_send_empty),
         quickSendHint = stringResource(Res.string.quick_send_hint),
+        historyEmpty = stringResource(Res.string.history_empty),
+        historyKeyboardHint = stringResource(Res.string.history_keyboard_hint),
+        actionUseHistory = stringResource(Res.string.action_use_history),
+        actionAddQuick = stringResource(Res.string.action_add_quick),
+        actionRemoveHistory = stringResource(Res.string.action_remove_history),
+        labelChecksum = stringResource(Res.string.label_checksum),
+        labelFrameMode = stringResource(Res.string.label_frame_mode),
+        labelFrameSize = stringResource(Res.string.label_frame_size),
+        labelDelimiter = stringResource(Res.string.label_delimiter),
+        frameModeFixed = stringResource(Res.string.frame_mode_fixed),
+        frameModeDelimiter = stringResource(Res.string.frame_mode_delimiter),
+        checksumUnavailable = stringResource(Res.string.checksum_unavailable),
+        frameUnavailable = stringResource(Res.string.frame_unavailable),
         searchLog = stringResource(Res.string.search_log),
         keywordSeparatorHint = stringResource(Res.string.keyword_separator_hint),
         notConfigured = stringResource(Res.string.not_configured),
@@ -262,8 +296,35 @@ private fun appStringsFromResources(): AppStrings {
         gatewayModeOneToOne = stringResource(Res.string.gateway_mode_one_to_one),
         gatewayModeOneToMany = stringResource(Res.string.gateway_mode_one_to_many),
         gatewayModeManyToMany = stringResource(Res.string.gateway_mode_many_to_many),
+        statusConnected = stringResource(Res.string.status_connected),
+        statusDisconnected = stringResource(Res.string.status_disconnected),
+        errorLoopInterval = stringResource(Res.string.error_loop_interval),
+        actionPinWindow = stringResource(Res.string.action_pin_window),
+        actionLanguage = stringResource(Res.string.action_language),
+        actionTheme = stringResource(Res.string.action_theme),
+        actionMinimize = stringResource(Res.string.action_minimize),
+        actionCloseWindow = stringResource(Res.string.action_close_window),
+        actionNewTab = stringResource(Res.string.action_new_tab),
+        actionDetachTab = stringResource(Res.string.action_detach_tab),
+        actionMergeTab = stringResource(Res.string.action_merge_tab),
+        actionCloseTab = stringResource(Res.string.action_close_tab),
+        actionExpand = stringResource(Res.string.action_expand),
+        actionCollapse = stringResource(Res.string.action_collapse),
+        actionCopyRow = stringResource(Res.string.action_copy_row),
+        actionCopyContent = stringResource(Res.string.action_copy_content),
+        actionClearLogs = stringResource(Res.string.action_clear_logs),
+        confirmClearLogsTitle = stringResource(Res.string.confirm_clear_logs_title),
+        confirmClearLogsMessage = stringResource(Res.string.confirm_clear_logs_message),
+        exportLogsDialogTitle = stringResource(Res.string.export_logs_dialog_title),
+        logsCopied = stringResource(Res.string.logs_copied),
+        configValid = stringResource(Res.string.config_valid),
         logCountPattern = stringResource(Res.string.log_count),
         searchPrefixPattern = stringResource(Res.string.search_prefix),
-        panelEndpointPattern = stringResource(Res.string.panel_endpoint)
+        panelEndpointPattern = stringResource(Res.string.panel_endpoint),
+        connectionSummaryPattern = stringResource(Res.string.connection_summary),
+        checksumResultPattern = stringResource(Res.string.checksum_result),
+        frameResultPattern = stringResource(Res.string.frame_result),
+        logsExportedPattern = stringResource(Res.string.logs_exported),
+        operationFailedPattern = stringResource(Res.string.operation_failed)
     )
 }

@@ -15,5 +15,6 @@ enum class LogType {
 data class LogEntry(
     val time: String,      // 时间戳 (HH:mm:ss)
     val type: LogType,      // 类型
-    val content: String     // 数据内容 (HEX 或 字符串)
+    val content: String,    // 数据内容 (HEX 或 字符串)
+    val id: Long = 0L       // 页面内稳定标识，供 Compose 列表复用
 )

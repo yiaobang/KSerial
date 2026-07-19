@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -27,9 +29,42 @@ fun AppStatusBar(vm: SerialViewModel) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(34.dp)
+            .height(40.dp)
             .border(BorderStroke(1.dp, colors.border.copy(0.3f)))
     ) {
+        Box(
+            modifier = Modifier
+                .widthIn(min = 170.dp, max = 230.dp)
+                .fillMaxHeight()
+                .background(colors.surface),
+            contentAlignment = Alignment.CenterStart
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(if (vm.isPortOpen) colors.success else colors.onSurface.copy(alpha = 0.30f))
+                )
+                Column {
+                    Text(
+                        if (vm.isPortOpen) s.statusConnected else s.statusDisconnected,
+                        color = colors.onSurface,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        vm.config.selectedPort.ifBlank { s.notSelected },
+                        color = colors.onSurface.copy(alpha = 0.48f),
+                        fontSize = 10.sp
+                    )
+                }
+            }
+        }
         // 左：发送统计
         Box(
             modifier = Modifier

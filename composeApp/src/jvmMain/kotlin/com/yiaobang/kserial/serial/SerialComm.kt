@@ -24,6 +24,10 @@ class SerialComm : SerialPortDataListener {
     /** 串口输出流 */
     private var outputStream: OutputStream? = null
 
+    @Volatile
+    var lastErrorMessage: String? = null
+        private set
+
     /** 外部数据监听器列表（解耦模拟器、持久化等关注方） */
     private val dataListeners = CopyOnWriteArrayList<(ByteArray) -> Unit>()
 
@@ -85,6 +89,7 @@ class SerialComm : SerialPortDataListener {
         // 先清理旧连接，确保逻辑幂等
         closePort()
 
+        lastErrorMessage = null
         return try {
             val port = SerialPort.getCommPort(portName)
             serialPort = port
@@ -112,6 +117,8 @@ class SerialComm : SerialPortDataListener {
             port.setComPortParameters(baudRate, dataBits, stopBits, parity)
             port.setFlowControl(flowControl)
             if (!port.openPort()) {
+                lastErrorMessage = port.descriptivePortName.takeIf { it.isNotBlank() }?.let { "Unable to open $it" }
+                    ?: "Unable to open $portName"
                 closePort()
                 false
             } else {
@@ -119,7 +126,8 @@ class SerialComm : SerialPortDataListener {
                 outputStream = port.outputStream
                 true
             }
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            lastErrorMessage = error.message ?: error::class.simpleName
             closePort()
             false
         }
@@ -145,7 +153,8 @@ class SerialComm : SerialPortDataListener {
             stream.write(data)
             stream.flush()
             data.size
-        } catch (_: Exception) {
+        } catch (error: Exception) {
+            lastErrorMessage = error.message ?: error::class.simpleName
             -1
         }
     }

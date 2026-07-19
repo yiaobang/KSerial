@@ -17,6 +17,7 @@ import com.yiaobang.kserial.workspace.WorkspaceState
 import kotlinx.coroutines.delay
 import org.jetbrains.compose.resources.painterResource
 import java.awt.Point
+import java.awt.Dimension
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import kotlin.time.Duration.Companion.milliseconds
@@ -104,6 +105,7 @@ private fun InstallWindowBehavior(
     }
 
     DisposableEffect(window) {
+        window.minimumSize = Dimension(900, 620)
         val adapter = object : MouseAdapter() {
             private var dragStart = Point()
             private var dragging = false

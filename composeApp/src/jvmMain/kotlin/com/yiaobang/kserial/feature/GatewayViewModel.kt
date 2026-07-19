@@ -9,12 +9,16 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.typesafe.config.Config
-import com.typesafe.config.ConfigFactory
+import com.yiaobang.kserial.i18n.Language
+import com.yiaobang.kserial.model.ConfigIssue
+import com.yiaobang.kserial.model.ConfigIssueSeverity
+import com.yiaobang.kserial.model.ConfigValidator
 import com.yiaobang.kserial.model.KeywordHighlightConfig
 import com.yiaobang.kserial.model.LogFilterConfig
 import com.yiaobang.kserial.model.LogEntry
 import com.yiaobang.kserial.model.LogType
 import com.yiaobang.kserial.serial.SerialComm
+import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
 import com.yiaobang.kserial.utils.toHexString
 import kotlinx.coroutines.Dispatchers
@@ -46,7 +50,7 @@ class GatewayEndpoint(
     var isOpen by mutableStateOf(false)
     var txCount by mutableLongStateOf(0L)
     var rxCount by mutableLongStateOf(0L)
-    val leaseOwner = "串口网关:$name:${UUID.randomUUID()}"
+    val leaseOwner = "串口桥接:$name:${UUID.randomUUID()}"
     var leasedPort: String? = null
 }
 
@@ -63,21 +67,46 @@ class GatewayViewModel : ViewModel() {
     val logs = mutableStateListOf<LogEntry>()
     val highlight = KeywordHighlightConfig()
     val logFilter = LogFilterConfig()
+    val configIssues = mutableStateListOf<ConfigIssue>()
 
     var mode by mutableStateOf(GatewayMode.OneToOne)
     var sourceIndex by mutableIntStateOf(0)
     var targetIndex by mutableIntStateOf(1)
     var hexDisplay by mutableStateOf(true)
     var loadedConfigName by mutableStateOf("")
+    var language by mutableStateOf(Language.fromLocale())
+    private var nextLogId = 1L
 
     init {
+        PortMonitor.start()
         resetDefaultEndpoints()
+        viewModelScope.launch {
+            PortMonitor.availablePorts.collect { ports ->
+                endpoints
+                    .filter { endpoint ->
+                        val port = endpoint.leasedPort
+                        endpoint.isOpen && port != null && port !in ports
+                    }
+                    .forEach { endpoint ->
+                        val port = endpoint.leasedPort ?: return@forEach
+                        closeEndpoint(endpoint, "${endpoint.name}: 串口 $port 已断开")
+                    }
+            }
+        }
     }
 
     fun loadConfig(file: File) {
+        val validation = ConfigValidator.validateGateway(file, language)
+        configIssues.clear()
+        configIssues.addAll(validation.issues)
+        validation.issues.forEach { issue ->
+            val prefix = if (issue.severity == ConfigIssueSeverity.ERROR) "ERROR" else "WARN"
+            addLog("$prefix: ${issue.message}", LogType.INFO)
+        }
+        loadedConfigName = file.name
+        if (!validation.isValid) return
         runCatching {
-            val parsed = ConfigFactory.parseFile(file).resolve()
-            val config = if (parsed.hasPath("gateway")) parsed.getConfig("gateway") else parsed
+            val config = validation.config ?: error("missing gateway configuration")
             val endpointConfigs = config.getConfigList("endpoints")
             val loadedEndpoints = endpointConfigs.mapIndexed { index, endpointConfig ->
                 GatewayEndpoint(
@@ -108,16 +137,12 @@ class GatewayViewModel : ViewModel() {
             if (config.hasPath("highlight")) {
                 applyHighlightConfig(config.getConfig("highlight"))
             }
-            val warnings = validateConfig(loadedEndpoints, loadedRoutes)
-
             replaceEndpoints(loadedEndpoints)
             routes.clear()
             routes.addAll(loadedRoutes)
             sourceIndex = 0
             targetIndex = if (endpoints.size > 1) 1 else 0
-            loadedConfigName = file.name
-            addLog("已加载网关配置: ${file.name}", LogType.INFO)
-            warnings.forEach { addLog(it, LogType.INFO) }
+            addLog("已加载桥接配置: ${file.name}", LogType.INFO)
 
             endpointConfigs.forEachIndexed { index, endpointConfig ->
                 if (endpointConfig.optionalBoolean("autoOpen") == true) {
@@ -125,7 +150,7 @@ class GatewayViewModel : ViewModel() {
                 }
             }
         }.onFailure {
-            addLog("网关配置加载失败: ${it.message ?: "unknown error"}", LogType.INFO)
+            addLog("桥接配置加载失败: ${it.message ?: "unknown error"}", LogType.INFO)
         }
     }
 
@@ -164,12 +189,12 @@ class GatewayViewModel : ViewModel() {
         addLog(if (success) "${endpoint.name}: $port 已打开" else "${endpoint.name}: $port 打开失败", LogType.INFO)
     }
 
-    fun closeEndpoint(endpoint: GatewayEndpoint) {
+    fun closeEndpoint(endpoint: GatewayEndpoint, message: String = "${endpoint.name}: 已关闭") {
         endpoint.serialComm.closePort()
         endpoint.leasedPort?.let { SerialPortLeaseRegistry.release(it, endpoint.leaseOwner) }
         endpoint.leasedPort = null
         endpoint.isOpen = false
-        addLog("${endpoint.name}: 已关闭", LogType.INFO)
+        addLog(message, LogType.INFO)
     }
 
     fun toggleEndpoint(endpoint: GatewayEndpoint) {
@@ -217,7 +242,7 @@ class GatewayViewModel : ViewModel() {
                     target.txCount += written
                     addLog("${source.name} -> ${target.name} $written bytes", LogType.TX)
                 } else {
-                    addLog("${source.name} -> ${target.name} 转发失败", LogType.INFO)
+                    closeEndpoint(target, "${source.name} -> ${target.name} 转发失败，连接已关闭")
                 }
             }
         }
@@ -251,45 +276,11 @@ class GatewayViewModel : ViewModel() {
     private fun addLog(content: String, type: LogType) {
         val time = SimpleDateFormat("HH:mm:ss").format(Date())
         if (logs.size >= 1000) logs.removeAt(0)
-        logs.add(LogEntry(time, type, content))
+        logs.add(LogEntry(time, type, content, nextLogId++))
     }
 
-    private fun validateConfig(
-        loadedEndpoints: List<GatewayEndpoint>,
-        loadedRoutes: List<GatewayRoute>
-    ): List<String> {
-        val warnings = mutableListOf<String>()
-        if (loadedEndpoints.isEmpty()) {
-            warnings += "配置警告: gateway.endpoints 为空"
-        }
-        loadedEndpoints
-            .groupBy { it.id }
-            .filter { it.value.size > 1 }
-            .keys
-            .forEach { warnings += "配置警告: endpoint id 重复: $it" }
-        loadedEndpoints
-            .filter { it.selectedPort.isBlank() }
-            .forEach { warnings += "配置警告: ${it.name} 未配置 port" }
-        loadedEndpoints
-            .filter { it.selectedPort.isNotBlank() }
-            .groupBy { it.selectedPort }
-            .filter { it.value.size > 1 }
-            .forEach { (port, endpoints) ->
-                warnings += "配置警告: $port 被多个端点使用: ${endpoints.joinToString { it.name }}"
-            }
-
-        val endpointIds = loadedEndpoints.map { it.id }.toSet()
-        loadedRoutes.forEach { route ->
-            val missingSources = route.sourceIds - endpointIds
-            val missingTargets = route.targetIds - endpointIds
-            if (missingSources.isNotEmpty()) {
-                warnings += "配置警告: ${route.name} sources 不存在: ${missingSources.joinToString()}"
-            }
-            if (missingTargets.isNotEmpty()) {
-                warnings += "配置警告: ${route.name} targets 不存在: ${missingTargets.joinToString()}"
-            }
-        }
-        return warnings
+    fun reportInfo(content: String) {
+        addLog(content, LogType.INFO)
     }
 
     private fun applyHighlightConfig(config: Config) {

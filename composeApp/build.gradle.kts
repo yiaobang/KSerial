@@ -1,5 +1,6 @@
 @file:OptIn(ExperimentalKotlinGradlePluginApi::class)
 
+
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 
@@ -12,7 +13,7 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(24)
+    jvmToolchain(25)
     jvm {
         mainRun {
             mainClass.set("com.yiaobang.kserial.MainKt")
@@ -21,13 +22,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            val composeVersion = libs.versions.composeMultiplatform.get()
-            implementation("org.jetbrains.compose.runtime:runtime:$composeVersion")
-            implementation("org.jetbrains.compose.foundation:foundation:$composeVersion")
-            implementation("org.jetbrains.compose.ui:ui:$composeVersion")
-            implementation("org.jetbrains.compose.components:components-resources:$composeVersion")
-            implementation("org.jetbrains.compose.material3:material3:1.9.0")
-            implementation("org.jetbrains.compose.material:material-icons-extended:1.7.3")
+            implementation(libs.bundles.compose.common)
             implementation(libs.androidx.lifecycle.viewmodelCompose)
             implementation(libs.androidx.lifecycle.runtimeCompose)
             implementation(libs.kotlinx.serialization.json)
@@ -56,8 +51,7 @@ compose {
         // 生成的 Res 类的包名（建议与你的应用包名一致）
         packageOfResClass = "com.yiaobang.kserial.resources"
 
-        // 是否自动生成 Res 类。'auto' 是默认值
-        generateResClass = auto
+        // 默认的 auto 模式会在存在 resources 依赖时生成 Res 类
     }
     desktop {
         application {
@@ -71,8 +65,8 @@ compose {
                 targetFormats(
                     TargetFormat.Msi,
                     TargetFormat.Exe,
-                    TargetFormat.Dmg,
                     TargetFormat.Pkg,
+                    TargetFormat.Dmg,
                     TargetFormat.Deb,
                     TargetFormat.Rpm
                 )

@@ -26,7 +26,12 @@ class AppPreferences {
     var loopIntervalText by mutableStateOf("1000")
 
     /** 解析后的发送间隔毫秒数，最小为 1ms */
-    val loopInterval: Long get() = loopIntervalText.toLongOrNull()?.coerceAtLeast(1L) ?: 1000L
+    val loopIntervalOrNull: Long?
+        get() = loopIntervalText.toLongOrNull()?.takeIf { it in 1L..86_400_000L }
+
+    val loopInterval: Long get() = loopIntervalOrNull ?: 1000L
+
+    val isLoopIntervalValid: Boolean get() = loopIntervalOrNull != null
 
     /** 持久化保存发送数据 */
     var saveSend by mutableStateOf(false)
@@ -44,7 +49,7 @@ class AppPreferences {
     var isDark by mutableStateOf(false)
 
     /** 当前语言 */
-    var currentLanguage by mutableStateOf(Language.ZH)
+    var currentLanguage by mutableStateOf(Language.fromLocale())
 
     /** 日志关键词高亮 */
     val highlight = KeywordHighlightConfig()
