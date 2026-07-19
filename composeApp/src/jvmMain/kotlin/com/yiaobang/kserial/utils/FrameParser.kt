@@ -1,10 +1,12 @@
 package com.yiaobang.kserial.utils
 
+/** 已完成帧和暂不足以组成下一帧的尾部数据。 */
 data class FrameParseResult(
     val frames: List<ByteArray>,
     val remainder: ByteArray
 )
 
+/** 无状态协议分帧工具，用于发送区预览和配置校验。 */
 object FrameParser {
     fun fixedLength(data: ByteArray, frameSize: Int): FrameParseResult {
         require(frameSize in 1..4096) { "frameSize must be between 1 and 4096" }
@@ -23,6 +25,7 @@ object FrameParser {
         var index = 0
         while (index <= data.size - delimiter.size) {
             if (data.matchesAt(index, delimiter)) {
+                // 返回帧包含 delimiter，便于直接对照线上真实报文。
                 val end = index + delimiter.size
                 frames += data.copyOfRange(frameStart, end)
                 frameStart = end

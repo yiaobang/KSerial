@@ -24,6 +24,7 @@ import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialComm
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
 import com.yiaobang.kserial.utils.HexInputParser
+import com.yiaobang.kserial.utils.TextEscapeParser
 import com.yiaobang.kserial.utils.ChecksumAlgorithm
 import com.yiaobang.kserial.utils.ChecksumUtils
 import com.yiaobang.kserial.utils.toHexString
@@ -231,7 +232,7 @@ class SerialViewModel(
             }
             result.bytes ?: byteArrayOf()
         } else {
-            data.toByteArray()
+            TextEscapeParser.decodeToByteArray(data)
         }
         val hexMode = prefs.hexSend
         viewModelScope.launch { sendBytes(data, bytes, hexMode) }
@@ -281,7 +282,11 @@ class SerialViewModel(
 
     fun inputBytesOrNull(): ByteArray? {
         if (inputText.isBlank()) return null
-        return if (prefs.hexSend) HexInputParser.parse(inputText).bytes else inputText.encodeToByteArray()
+        return if (prefs.hexSend) {
+            HexInputParser.parse(inputText).bytes
+        } else {
+            TextEscapeParser.decodeToByteArray(inputText)
+        }
     }
 
     fun checksum(algorithm: ChecksumAlgorithm): ByteArray? =
@@ -381,7 +386,7 @@ class SerialViewModel(
                         val bytes = if (hexMode) {
                             parseResult?.bytes ?: byteArrayOf()
                         } else {
-                            data.toByteArray()
+                            TextEscapeParser.decodeToByteArray(data)
                         }
                         if (bytes.isNotEmpty()) sendBytes(data, bytes, hexMode)
                     }

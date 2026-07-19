@@ -1,5 +1,6 @@
 package com.yiaobang.kserial.utils
 
+/** 协议工具面板支持的常见校验算法。 */
 enum class ChecksumAlgorithm {
     CRC16_MODBUS,
     XOR,
@@ -7,6 +8,7 @@ enum class ChecksumAlgorithm {
     LRC
 }
 
+/** 对原始发送字节计算校验值，不涉及显示文本或字符编码。 */
 object ChecksumUtils {
     fun calculate(data: ByteArray, algorithm: ChecksumAlgorithm): ByteArray = when (algorithm) {
         ChecksumAlgorithm.CRC16_MODBUS -> crc16Modbus(data)
@@ -23,6 +25,7 @@ object ChecksumUtils {
                 crc = if ((crc and 1) != 0) (crc ushr 1) xor 0xA001 else crc ushr 1
             }
         }
+        // Modbus 在线路上按低字节在前、高字节在后的顺序附加 CRC。
         return byteArrayOf((crc and 0xFF).toByte(), ((crc ushr 8) and 0xFF).toByte())
     }
 }

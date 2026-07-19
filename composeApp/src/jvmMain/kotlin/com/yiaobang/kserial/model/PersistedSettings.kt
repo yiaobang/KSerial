@@ -2,6 +2,7 @@ package com.yiaobang.kserial.model
 
 import com.yiaobang.kserial.i18n.Language
 
+/** settings.conf 的稳定磁盘模型；与 Compose 可变状态分离，便于版本迁移和测试。 */
 data class PersistedSettings(
     val schemaVersion: Int = 1,
     val appearance: PersistedAppearance = PersistedAppearance(),
@@ -25,6 +26,10 @@ data class PersistedSerialSettings(
     val flowControlIndex: Int = 0
 )
 
+/**
+ * 可以跨会话恢复的交互偏好。发送输入、循环发送开关和循环间隔有意不在此模型中，
+ * 防止重启后意外继续发送上一次的数据。
+ */
 data class PersistedPreferences(
     val showRealTime: Boolean = true,
     val hexDisplay: Boolean = false,
@@ -54,6 +59,7 @@ fun AppPreferences.applyPersisted(
     showRealTime = settings.showRealTime
     hexDisplay = settings.hexDisplay
     hexSend = settings.hexSend
+    // 循环发送属于有副作用的临时状态，每次启动必须回到安全默认值。
     loopSendEnabled = false
     loopIntervalText = "1000"
     saveSend = settings.saveSend
@@ -71,6 +77,7 @@ fun AppPreferences.applyPersisted(
 }
 
 fun SerialPortConfig.applyPersisted(settings: PersistedSerialSettings) {
+    // 对人工编辑或旧版本留下的越界值做最后一道收敛，避免 UI 下标访问异常。
     selectedPort = settings.selectedPort
     baudRate = settings.baudRate.takeIf { it > 0 } ?: 9600
     dataBits = settings.dataBits.coerceIn(5, 8)

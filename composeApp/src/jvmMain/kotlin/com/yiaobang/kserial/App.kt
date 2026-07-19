@@ -54,6 +54,9 @@ import com.yiaobang.kserial.workspace.WindowHostState
 import com.yiaobang.kserial.workspace.WorkspaceSection
 import com.yiaobang.kserial.workspace.WorkspaceState
 
+// 桌面工作区的页面组合集中在此文件；串口和路由业务状态留在各自 ViewModel 中。
+
+/** 主窗口和浮动窗口共用的应用外壳：标题栏、侧栏、标签栏和活动页面。 */
 @Composable
 fun WorkspaceApp(
     workspace: WorkspaceState,
@@ -105,6 +108,7 @@ private fun WorkspaceSidebar(
     selectedSection: WorkspaceSection,
     onSelectSection: (WorkspaceSection) -> Unit
 ) {
+    // 切换功能域不会隐式新建页面；没有页面时由内容区提示用户点击“+”。
     val colors = LocalAppColors.current
     val strings = LocalAppStrings.current
     Column(
@@ -209,6 +213,7 @@ private fun WorkspaceTabBar(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // 每个功能域只显示自己的标签，切换功能时仍保留原来的活动标签。
         workspace.tabIdsFor(host).forEach { tabId ->
             val tab = workspace.tab(tabId) ?: return@forEach
             WorkspaceTabChip(
@@ -314,6 +319,7 @@ private fun WorkspaceContent(
 ) {
     val tab = workspace.activeTab(host)
     Box(modifier = modifier.fillMaxSize()) {
+        // tab id 变化时丢弃旧页面的 remember 状态，但 ViewModel 仍由工作区持有。
         key(tab?.id) {
             when (tab?.section) {
                 WorkspaceSection.Basic -> {
@@ -339,6 +345,7 @@ private fun ScrollableSidePanel(
     width: Dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    // 控制项可能超过窗口高度，始终显示滚动条提示下方还有更多设置。
     val scrollState = rememberScrollState()
     val colors = LocalAppColors.current
     Box(
@@ -378,6 +385,7 @@ private fun BasicSerialPage(
     val prefs = viewModel.prefs
     val listState = rememberLazyListState()
 
+    // 循环发送由界面状态驱动，端口断开或开关关闭时立即取消发送协程。
     LaunchedEffect(prefs.loopSendEnabled, prefs.loopIntervalText, viewModel.isPortOpen) {
         if (prefs.loopSendEnabled && viewModel.isPortOpen) {
             viewModel.startLoopSend()
@@ -417,6 +425,7 @@ private fun DataDisplayPanel(
     val prefs = viewModel.prefs
     var confirmClearLogs by remember { mutableStateOf(false) }
     val logBackground = if (prefs.isDark) Color(0xFF141414) else Color(0xFFF9F9F9)
+    // 搜索和类型筛选只派生显示列表，不删除 ViewModel 中的完整会话日志。
     val visibleLogs by remember(viewModel) {
         derivedStateOf { viewModel.logs.filter { prefs.logFilter.accepts(it) } }
     }
@@ -480,6 +489,7 @@ private fun DataDisplayPanel(
                 .background(colors.surface)
                 .border(1.dp, colors.border.copy(alpha = 0.78f), RoundedCornerShape(7.dp))
         ) {
+            // HEX 模式实时预检输入；真正发送前 ViewModel 仍会再次校验。
             val hexResult = remember(prefs.hexSend, viewModel.inputText) {
                 if (prefs.hexSend && viewModel.inputText.isNotBlank()) {
                     HexInputParser.parse(viewModel.inputText)
@@ -550,6 +560,7 @@ private fun DataDisplayPanel(
 
 @Composable
 private fun SimulatorPage(viewModel: SerialViewModel) {
+    // 模拟器复用终端数据区，右侧换成配置、规则状态和自动回复控制。
     val prefs = viewModel.prefs
     val listState = rememberLazyListState()
 
@@ -674,6 +685,7 @@ private fun localizedTabTitle(tab: com.yiaobang.kserial.workspace.AppTab, string
 
 @Composable
 private fun GatewayPage(viewModel: GatewayViewModel) {
+    // 桥接需同时展示转发日志与多个端点，因此使用比普通终端更宽的控制侧栏。
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -700,6 +712,7 @@ private fun GatewayLogPanel(
     val listState = rememberLazyListState()
     var confirmClearLogs by remember { mutableStateOf(false) }
     val logBackground = if (colors.surface.luminance() > 0.5f) Color(0xFFF9F9F9) else Color(0xFF141414)
+    // 导出和复制只使用当前可见集合，原始桥接日志仍完整保留。
     val visibleLogs by remember(viewModel) {
         derivedStateOf { viewModel.logs.filter { viewModel.logFilter.accepts(it) } }
     }
@@ -1110,6 +1123,7 @@ private fun buildHighlightedLogText(
     keywords: List<String>,
     ignoreCase: Boolean
 ): AnnotatedString {
+    // 合并关键词和搜索词命中范围后统一着色，避免重叠区间重复拼接文本。
     val ranges = findKeywordRanges(text, keywords, ignoreCase)
     if (ranges.isEmpty()) return AnnotatedString(text)
 
@@ -1131,6 +1145,7 @@ private fun findKeywordRanges(
     keywords: List<String>,
     ignoreCase: Boolean
 ): List<IntRange> {
+    // 每次命中后至少推进一个字符，允许重叠匹配并避免空关键词造成死循环。
     val ranges = mutableListOf<IntRange>()
     keywords.forEach { keyword ->
         var start = 0

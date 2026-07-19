@@ -6,7 +6,9 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 
+/** 应用目录约定及首次启动时的配置样例部署逻辑。 */
 object AppPaths {
+    /** 所有便携式配置都优先相对于启动工作目录解析。 */
     @JvmField
     val ROOT_FILE_PATH: File = File(System.getProperty("user.dir", "."))
         .toPath()
@@ -44,10 +46,12 @@ object AppPaths {
         Files.createDirectories(normalizedDirectory)
 
         val settingsFile = normalizedDirectory.resolve("settings.conf")
+        // 只在新目录尚未生成 settings.conf 时迁移旧版本设置，绝不覆盖用户的新配置。
         if (!Files.exists(settingsFile) && legacySettingsFile != null && Files.isRegularFile(legacySettingsFile)) {
             Files.copy(legacySettingsFile, settingsFile, StandardCopyOption.COPY_ATTRIBUTES)
         }
 
+        // 样例同样只补缺失文件，用户修改过的内容会被完整保留。
         CONFIG_SAMPLE_NAMES.forEach { sampleName ->
             val target = normalizedDirectory.resolve(sampleName)
             if (!Files.exists(target)) {

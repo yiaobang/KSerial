@@ -1,5 +1,6 @@
 package com.yiaobang.kserial.utils
 
+/** HEX 输入的解析结果；错误时 bytes 为 null，合法空输入则返回空数组。 */
 data class HexInputResult(
     val bytes: ByteArray?,
     val normalizedText: String,
@@ -9,6 +10,10 @@ data class HexInputResult(
     val byteCount: Int get() = bytes?.size ?: 0
 }
 
+/**
+ * 面向人工输入的宽松 HEX 解析器：接受空格、逗号、分号、下划线、短横线和 0x 前缀，
+ * 但剥离分隔符后必须是偶数个严格十六进制数字。
+ */
 object HexInputParser {
     fun parse(input: String): HexInputResult {
         val compact = input

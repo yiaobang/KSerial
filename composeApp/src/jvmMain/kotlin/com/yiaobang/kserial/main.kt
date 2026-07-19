@@ -23,10 +23,12 @@ import java.awt.event.MouseEvent
 import kotlin.time.Duration.Companion.milliseconds
 import java.awt.Window as AwtWindow
 
+/** Compose Desktop 入口：创建唯一工作区，并为主窗口和浮动窗口绑定各自宿主状态。 */
 fun main() = application {
     val workspace = remember { WorkspaceState() }
     val appIcon = painterResource(Res.drawable.app_icon)
 
+    // key 保证宿主身份变化时窗口级 remember 状态不会错误复用。
     key(workspace.mainHost.id) {
         val mainWindowState = rememberWindowState(
             width = 1120.dp,
@@ -59,6 +61,7 @@ fun main() = application {
         }
     }
 
+    // 浮动窗口关闭时标签合并回主窗口，而不是销毁仍在使用的串口会话。
     workspace.floatingHosts.forEach { host ->
         key(host.id) {
             val floatingWindowState = rememberWindowState(
@@ -93,6 +96,7 @@ private fun InstallWindowBehavior(
     window: AwtWindow,
     workspace: WorkspaceState
 ) {
+    // 部分桌面环境切换置顶后需要主动前置一次才能立即生效。
     LaunchedEffect(workspace.prefs.isAlwaysOnTop) {
         if (workspace.prefs.isAlwaysOnTop) {
             delay(50L.milliseconds)
@@ -106,6 +110,7 @@ private fun InstallWindowBehavior(
 
     DisposableEffect(window) {
         window.minimumSize = Dimension(900, 620)
+        // 窗口采用无系统边框样式，顶部 40px 自行承担标题栏拖动行为。
         val adapter = object : MouseAdapter() {
             private var dragStart = Point()
             private var dragging = false

@@ -8,11 +8,16 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 
+/** 加载失败时返回安全默认值，并把可展示的原因作为 warning 交给 UI。 */
 data class SettingsLoadResult(
     val settings: PersistedSettings,
     val warning: String? = null
 )
 
+/**
+ * settings.conf 的读取与原子写入入口。
+ * 保存时保留应用不认识的现有字段，使用户自定义扩展不会被一次设置保存全部抹掉。
+ */
 class AppSettingsStore(
     val settingsFile: Path = defaultSettingsPath()
 ) {
@@ -34,6 +39,7 @@ class AppSettingsStore(
         if (parent != null) Files.createDirectories(parent)
         val temporary = settingsFile.resolveSibling("${settingsFile.fileName}.tmp")
         Files.writeString(temporary, render(settings))
+        // 同目录临时文件 + 原子替换可避免进程中断留下半份配置；文件系统不支持时再普通替换。
         runCatching {
             Files.move(
                 temporary,
@@ -93,6 +99,7 @@ class AppSettingsStore(
         } else {
             null
         }
+        // 只覆盖本版本拥有的字段，未知字段仍从 current 中保留。
         val merged = existing?.let { current ->
             generated.entrySet().fold(current) { config, entry ->
                 config.withValue(entry.key, entry.value)

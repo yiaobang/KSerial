@@ -7,6 +7,7 @@ import com.yiaobang.kserial.resources.*
 import org.jetbrains.compose.resources.stringResource
 import java.util.Locale
 
+/** 支持的界面语言及其资源语言标签。 */
 enum class Language(
     val languageTag: String
 ) {
@@ -29,6 +30,10 @@ enum class Language(
     }
 }
 
+/**
+ * 当前语言下的完整文案快照。UI 只依赖该模型，不直接拼接业务文案，
+ * 保证中文、英文和日文在同一组件中同步更新。
+ */
 data class AppStrings(
     val workspace: String,
     val sectionBasic: String,
@@ -171,6 +176,7 @@ data class AppStrings(
 
 private fun String.formatLocalized(vararg args: Any): String = String.format(Locale.getDefault(), this, *args)
 
+/** 子组件读取当前语言文案的 CompositionLocal。 */
 val LocalAppStrings = staticCompositionLocalOf<AppStrings> {
     error("LocalAppStrings is not provided")
 }
@@ -180,6 +186,7 @@ fun ProvideAppStrings(
     language: Language,
     content: @Composable () -> Unit
 ) {
+    // 设置默认 Locale 后，Compose Resources 会从对应 values-xx 目录读取文本。
     language.applyAsDefaultLocale()
     val strings = appStringsFromResources()
     CompositionLocalProvider(LocalAppStrings provides strings, content = content)
@@ -187,6 +194,7 @@ fun ProvideAppStrings(
 
 @Composable
 private fun appStringsFromResources(): AppStrings {
+    // 集中完成资源到强类型模型的映射，避免各 UI 文件遗漏某一种语言。
     return AppStrings(
         workspace = stringResource(Res.string.workspace),
         sectionBasic = stringResource(Res.string.section_basic),

@@ -4,11 +4,13 @@ import com.yiaobang.kserial.model.LogEntry
 import java.nio.file.Files
 import java.nio.file.Path
 
+/** 用户可选择的会话日志导出格式。 */
 enum class LogExportFormat(val extension: String) {
     TEXT("txt"),
     CSV("csv")
 }
 
+/** 将当前可见日志渲染并写入文本或 RFC 风格转义的 CSV 文件。 */
 object LogExporter {
     fun render(logs: List<LogEntry>, format: LogExportFormat): String = when (format) {
         LogExportFormat.TEXT -> logs.joinToString("\n") { log ->
@@ -32,5 +34,6 @@ object LogExporter {
         return path
     }
 
+    /** CSV 字段统一加引号，字段内部双引号按规范写成两个双引号。 */
     private fun csv(value: String): String = "\"${value.replace("\"", "\"\"")}\""
 }

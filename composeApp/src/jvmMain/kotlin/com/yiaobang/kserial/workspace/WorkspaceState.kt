@@ -22,12 +22,14 @@ import com.yiaobang.kserial.utils.AppPaths
 
 private const val MAIN_HOST_ID = 0
 
+/** 左侧导航中的三个功能域；每个功能域维护独立的活动标签页。 */
 enum class WorkspaceSection(val label: String) {
     Basic("串口终端"),
     Simulator("设备模拟"),
     Gateway("串口桥接")
 }
 
+/** 一个可在主窗口和浮动窗口之间移动的业务标签页。 */
 class AppTab(
     val id: Int,
     val section: WorkspaceSection,
@@ -37,6 +39,10 @@ class AppTab(
     val gatewayViewModel: GatewayViewModel? = null
 )
 
+/**
+ * 一个桌面窗口的轻量状态。ViewModel 归标签页所有，窗口只保存标签顺序和选择状态，
+ * 因此标签脱离或合并窗口时不会断开串口连接。
+ */
 class WindowHostState(
     val id: Int
 ) {
@@ -45,6 +51,10 @@ class WindowHostState(
     var selectedSection by mutableStateOf(WorkspaceSection.Basic)
 }
 
+/**
+ * 应用级工作区协调器，负责多标签/多窗口生命周期、全局外观偏好和配置持久化。
+ * 所有标签页 ViewModel 都由这里创建和释放，避免 Compose 重组意外重建串口会话。
+ */
 class WorkspaceState(
     private val settingsStore: AppSettingsStore = AppSettingsStore()
 ) {
@@ -64,6 +74,7 @@ class WorkspaceState(
     private var nextHostId = 1
 
     init {
+        // 始终保留一个基础终端作为首次启动入口，同时把初始化问题显示在页面日志中。
         val tabId = openTab(WorkspaceSection.Basic, mainHost.id, autoConnectBasic = false)
         configDirectoryResult.exceptionOrNull()?.let { error ->
             tab(tabId)?.serialViewModel?.addLog(
@@ -111,6 +122,7 @@ class WorkspaceState(
         val host = findHost(hostId) ?: mainHost
         val id = nextTabId++
         val titleIndex = nextSectionTitleIndex(section)
+        // 终端和模拟器复用串口 VM；桥接拥有多端点，必须使用专门的 GatewayViewModel。
         val tab = AppTab(
             id = id,
             section = section,
@@ -174,6 +186,7 @@ class WorkspaceState(
             floatingHosts.remove(host)
         }
 
+        // 关闭最后一个页面时自动补回基础终端，避免工作区进入没有可操作内容的死状态。
         if (mainHost.tabIds.isEmpty() && floatingHosts.isEmpty()) {
             openTab(WorkspaceSection.Basic, mainHost.id, autoConnectBasic = false)
         }
@@ -191,6 +204,7 @@ class WorkspaceState(
             source.activeTabBySection[tab.section] = remainingSectionTabs.firstOrNull()
         }
 
+        // 只转移 tabId，AppTab 及其 ViewModel 仍保存在中央 tabs 表中。
         val newHost = WindowHostState(nextHostId++)
         newHost.tabIds += tabId
         newHost.selectedSection = tab.section
@@ -255,6 +269,7 @@ class WorkspaceState(
     }
 
     fun disposeAll() {
+        // 退出前先保存仍然可读的页面状态，再关闭串口并清理全局监视器/租约。
         saveSettings()
         tabs.values.toList().forEach { disposeTab(it.id) }
         tabs.clear()
@@ -273,6 +288,7 @@ class WorkspaceState(
             syncOnConfigChange = syncOnConfigChange,
             sendHistory = sendHistory
         ).also {
+            // 新页面继承最近串口页面的配置；首次页面则使用磁盘中的启动快照。
             val source = tabs.values.lastOrNull { tab -> tab.serialViewModel != null }?.serialViewModel
             if (source != null) {
                 it.config.applyPersisted(source.config.toPersisted())
@@ -287,6 +303,7 @@ class WorkspaceState(
     }
 
     fun saveSettings(): Result<java.nio.file.Path> {
+        // 优先保存主窗口当前终端，若它不存在则使用任意仍存活的串口页面作为配置来源。
         val source = tab(mainHost.activeTabBySection[WorkspaceSection.Basic])?.serialViewModel
             ?: tabs.values.firstNotNullOfOrNull { it.serialViewModel }
         val settings = PersistedSettings(
