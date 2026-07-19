@@ -62,13 +62,41 @@ Release packages include the application runtime, so end users normally do not n
 
 To emulate a device, load a rule file in **Device Simulator**. To forward data across ports, load endpoint and route configuration in **Serial Bridge**.
 
-On first launch, KSerial creates a comment-friendly HOCON `settings.conf` in the user configuration directory. It restores language, theme, always-on-top state, serial parameters, display and filter options, quick commands, and send history. The send input, loop-send switch and interval are not saved, and a serial port is never opened automatically.
+### Runtime directory and `settings.conf`
 
-| Platform | Global settings path |
+On first launch, KSerial uses `System.getProperty("user.dir")` as its runtime root, creates a `conf` directory, and writes:
+
+- `settings.conf` for global settings;
+- `01-simulator-minimal.conf` through `06-bridge-multi-route.conf` as progressive Device Simulator and Serial Bridge examples.
+
+Device Simulator and Serial Bridge file dialogs open this `conf` directory first. When upgrading, KSerial copies the legacy user settings file if the new directory does not yet contain `settings.conf`. Example files are created only when missing and never overwrite user edits.
+
+KSerial writes `settings.conf` as comment-free HOCON. Manually added comments can be read, but they are removed on the next save. If KSerial is installed under a protected location such as `Program Files`, the current user must have write access to the runtime directory before `conf` can be created or updated.
+
+| Field | Description |
 | --- | --- |
-| Windows | `%APPDATA%\KSerial\settings.conf` |
-| macOS | `~/Library/Application Support/KSerial/settings.conf` |
-| Linux | `$XDG_CONFIG_HOME/kserial/settings.conf`, or `~/.config/kserial/settings.conf` when unset |
+| `schemaVersion` | Settings schema version; do not edit manually. |
+| `appearance.darkTheme` | Whether to use the dark theme. |
+| `appearance.alwaysOnTop` | Whether windows stay always on top. |
+| `appearance.language` | UI language: `zh`, `en`, or `ja`. |
+| `serial.selectedPort` | Last selected port; the selection is restored without opening it automatically. |
+| `serial.baudRate` | Baud rate. |
+| `serial.dataBits` | Data bits, from 5 through 8. |
+| `serial.stopBitsIndex` | Stop-bits index: `0=1`, `1=1.5`, `2=2`. |
+| `serial.parityIndex` | Parity index: `0=None`, `1=Odd`, `2=Even`, `3=Mark`, `4=Space`. |
+| `serial.flowControlIndex` | Flow-control index: `0=None`, `1=RTS/CTS`, `2=DSR/DTR`, `3=XON/XOFF`. |
+| `preferences.showRealTime` | Whether timestamps appear in logs. |
+| `preferences.hexDisplay` | Whether received data is displayed as HEX. |
+| `preferences.hexSend` | Whether send input is interpreted as HEX. |
+| `preferences.saveSend` / `saveReceive` | Whether transmitted and received data are saved. |
+| `preferences.quickCommandsText` | Quick-send commands, one per line, with escape-sequence support. |
+| `preferences.highlightEnabled` / `highlightIgnoreCase` / `highlightKeywords` | Keyword highlight switch, case rule, and keyword list. |
+| `preferences.logQuery` / `logOnlyMatches` | Last log query and whether only matching entries are shown. |
+| `preferences.logAutoScroll` | Whether logs automatically scroll to the bottom. |
+| `preferences.logShowTx` / `logShowRx` / `logShowInfo` | Whether each log type is visible. |
+| `sendHistory` | Newest-first, deduplicated send history with at most 100 entries. |
+
+The send input, loop-send switch, and loop interval are not persisted, and no serial port is opened automatically at startup.
 
 ## Configuration-driven simulation and bridging
 

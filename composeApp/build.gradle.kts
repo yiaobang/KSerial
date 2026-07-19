@@ -30,13 +30,16 @@ kotlin {
         commonTest.dependencies {
             implementation(libs.kotlin.test)
         }
-        jvmMain.dependencies {
-            implementation(compose.desktop.currentOs)
-            implementation(libs.kotlinx.coroutinesSwing)
-            //串口
-            implementation(libs.fazecast.jSerialComm)
-            //配置
-            implementation(libs.typesafe.config)
+        jvmMain {
+            resources.srcDir(rootProject.file("config_samples"))
+            dependencies {
+                implementation(compose.desktop.currentOs)
+                implementation(libs.kotlinx.coroutinesSwing)
+                //串口
+                implementation(libs.fazecast.jSerialComm)
+                //配置
+                implementation(libs.typesafe.config)
+            }
         }
         jvmTest.dependencies {
             implementation(libs.kotlin.testJunit)

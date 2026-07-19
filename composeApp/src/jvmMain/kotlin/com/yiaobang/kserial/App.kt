@@ -53,9 +53,6 @@ import com.yiaobang.kserial.utils.LogExporter
 import com.yiaobang.kserial.workspace.WindowHostState
 import com.yiaobang.kserial.workspace.WorkspaceSection
 import com.yiaobang.kserial.workspace.WorkspaceState
-import java.awt.FileDialog
-import java.awt.Frame
-import java.io.File
 
 @Composable
 fun WorkspaceApp(
@@ -596,11 +593,7 @@ private fun SimulatorControlPanel(vm: SerialViewModel) {
                 color = if (vm.isSimulating) colors.success else colors.surface,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                val dialog = FileDialog(null as Frame?, strings.simulatorConfigDialogTitle, FileDialog.LOAD).apply {
-                    file = "*.conf"
-                    isVisible = true
-                }
-                dialog.file?.let { vm.loadSimulator(File(dialog.directory, it)) }
+                DesktopActions.selectConfigFile(strings.simulatorConfigDialogTitle)?.let(vm::loadSimulator)
             }
             if (vm.simulatorConfigName.isNotBlank()) {
                 Text(
@@ -773,11 +766,7 @@ private fun GatewayControlPanel(viewModel: GatewayViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         CardPanel(title = strings.panelConfig) {
             ActionButton(strings.btnLoadConfig, colors.surface, Modifier.fillMaxWidth()) {
-                val dialog = FileDialog(null as Frame?, strings.gatewayConfigDialogTitle, FileDialog.LOAD).apply {
-                    file = "*.conf"
-                    isVisible = true
-                }
-                dialog.file?.let { viewModel.loadConfig(File(dialog.directory, it)) }
+                DesktopActions.selectConfigFile(strings.gatewayConfigDialogTitle)?.let(viewModel::loadConfig)
             }
             if (viewModel.loadedConfigName.isNotBlank()) {
                 Text(

@@ -62,13 +62,41 @@ KSerial は Kotlin と Compose Multiplatform で構築され、組み込み開�
 
 機器を模擬する場合は **デバイス模擬** でルール設定を読み込み、ポート間でデータを転送する場合は **シリアルブリッジ** で端点とルートの設定を読み込みます。
 
-初回起動時に、KSerial はユーザー設定ディレクトリへコメント可能な HOCON `settings.conf` を作成します。言語、テーマ、最前面表示、シリアル条件、表示・フィルター設定、クイック送信、送信履歴を復元します。送信入力欄、繰り返し送信の有効状態と間隔は保存せず、シリアルポートも自動では開きません。
+### 実行ディレクトリと `settings.conf`
 
-| OS | グローバル設定の保存先 |
+初回起動時に、KSerial は `System.getProperty("user.dir")` を実行ルートとして `conf` ディレクトリを作成し、次のファイルを配置します。
+
+- グローバル設定用の `settings.conf`。
+- 段階的に学べるデバイス模擬・シリアルブリッジ例 `01-simulator-minimal.conf` ～ `06-bridge-multi-route.conf`。
+
+デバイス模擬とシリアルブリッジの設定ファイル選択画面は、最初にこの `conf` ディレクトリを開きます。旧版からの更新時は、新しい場所に `settings.conf` がなければ従来のユーザー設定をコピーします。サンプルは存在しない場合だけ作成し、ユーザーの編集を上書きしません。
+
+`settings.conf` はコメントなしの HOCON として保存されます。手動で追加したコメントは読み込めますが、次回保存時に削除されます。`Program Files` など保護された場所にインストールした場合は、`conf` の作成・更新に必要な書き込み権限を実行ユーザーへ付与してください。
+
+| フィールド | 説明 |
 | --- | --- |
-| Windows | `%APPDATA%\KSerial\settings.conf` |
-| macOS | `~/Library/Application Support/KSerial/settings.conf` |
-| Linux | `$XDG_CONFIG_HOME/kserial/settings.conf`、未設定時は `~/.config/kserial/settings.conf` |
+| `schemaVersion` | 設定スキーマのバージョン。手動で変更しないでください。 |
+| `appearance.darkTheme` | ダークテーマを使用するか。 |
+| `appearance.alwaysOnTop` | ウィンドウを常に最前面に表示するか。 |
+| `appearance.language` | UI 言語：`zh`、`en`、`ja`。 |
+| `serial.selectedPort` | 最後に選択したポート。選択だけを復元し、自動では開きません。 |
+| `serial.baudRate` | ボーレート。 |
+| `serial.dataBits` | データビット。5～8。 |
+| `serial.stopBitsIndex` | ストップビットの索引：`0=1`、`1=1.5`、`2=2`。 |
+| `serial.parityIndex` | パリティの索引：`0=None`、`1=Odd`、`2=Even`、`3=Mark`、`4=Space`。 |
+| `serial.flowControlIndex` | フロー制御の索引：`0=None`、`1=RTS/CTS`、`2=DSR/DTR`、`3=XON/XOFF`。 |
+| `preferences.showRealTime` | ログに時刻を表示するか。 |
+| `preferences.hexDisplay` | 受信データを HEX 表示するか。 |
+| `preferences.hexSend` | 送信入力を HEX として解釈するか。 |
+| `preferences.saveSend` / `saveReceive` | 送信・受信データを保存するか。 |
+| `preferences.quickCommandsText` | クイック送信コマンド。1 行に 1 件、エスケープシーケンス対応。 |
+| `preferences.highlightEnabled` / `highlightIgnoreCase` / `highlightKeywords` | キーワード強調の有効状態、大文字小文字の規則、キーワード一覧。 |
+| `preferences.logQuery` / `logOnlyMatches` | 最後のログ検索文字列と、一致項目だけを表示するか。 |
+| `preferences.logAutoScroll` | ログを自動的に末尾までスクロールするか。 |
+| `preferences.logShowTx` / `logShowRx` / `logShowInfo` | 各ログ種別を表示するか。 |
+| `sendHistory` | 新しい順、重複除外、最大 100 件の送信履歴。 |
+
+送信入力欄、繰り返し送信スイッチ、送信間隔は保存せず、起動時にシリアルポートを自動では開きません。
 
 ## 設定によるデバイス模擬とブリッジ
 

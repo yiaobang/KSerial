@@ -18,7 +18,7 @@ import com.yiaobang.kserial.model.toPersistedAppearance
 import com.yiaobang.kserial.model.toPersistedPreferences
 import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
-import java.nio.file.Files
+import com.yiaobang.kserial.utils.AppPaths
 
 private const val MAIN_HOST_ID = 0
 
@@ -48,7 +48,7 @@ class WindowHostState(
 class WorkspaceState(
     private val settingsStore: AppSettingsStore = AppSettingsStore()
 ) {
-    private val firstRun = !Files.exists(settingsStore.settingsFile)
+    private val configDirectoryResult = AppPaths.initializeConfigDirectory()
     private val settingsLoadResult = settingsStore.load()
     private val initialSettings = settingsLoadResult.settings
     val prefs = AppPreferences().apply {
@@ -65,10 +65,21 @@ class WorkspaceState(
 
     init {
         val tabId = openTab(WorkspaceSection.Basic, mainHost.id, autoConnectBasic = false)
+        configDirectoryResult.exceptionOrNull()?.let { error ->
+            tab(tabId)?.serialViewModel?.addLog(
+                "Unable to initialize ${AppPaths.CONF_FILE_PATH.absolutePath}: ${error.message ?: error::class.simpleName}",
+                LogType.INFO
+            )
+        }
         settingsLoadResult.warning?.let { warning ->
             tab(tabId)?.serialViewModel?.addLog(warning, LogType.INFO)
         }
-        if (firstRun) saveSettings()
+        saveSettings().exceptionOrNull()?.let { error ->
+            tab(tabId)?.serialViewModel?.addLog(
+                "Unable to save ${settingsStore.settingsFile}: ${error.message ?: error::class.simpleName}",
+                LogType.INFO
+            )
+        }
     }
 
     fun tab(tabId: Int?): AppTab? = tabId?.let { tabs[it] }
