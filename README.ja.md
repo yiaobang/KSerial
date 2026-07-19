@@ -159,11 +159,41 @@ macOS / Linux：
 ./gradlew :composeApp:packageDistributionForCurrentOS
 ```
 
+## テスト
+
+Gradle プロジェクトを更新すると、IDE の `composeApp > Tasks > KSerial Tests` グループから次のタスクを直接実行できます。
+
+| タスク | 用途 |
+| --- | --- |
+| `coreTest` | 実際のシリアルポートを開かずに、単体テストと Compose UI テストを実行します |
+| `terminalHardwareTest` | 仮想ポートの第 1 ペアで、シリアルターミナルの実際の双方向通信、エスケープ解析、ループ送信を検証します |
+| `simulatorHardwareTest` | 第 2・第 3 ペアで、ASCII 区切り文字フレームと HEX 固定長フレームの自動応答を検証します |
+| `gatewayHardwareTest` | 5 ペアすべてで、設定ルート、1 対 1、1 対多、多対多、バイナリ透過転送、非対象ポートへの漏えい防止を検証します |
+| `allHardwareTest` | ターミナル、デバイスシミュレーター、シリアルゲートウェイの実機テストを順番に実行します |
+| `allKSerialTest` | 単体/UI テストの後に、すべての実シリアルポートテストを実行します |
+
+低速で確認できる `terminalHardwareObserve`、`simulatorHardwareObserve`、`gatewayHardwareObserve` も用意されています。各書き込みの前後で一時停止し、コンソールに `OPEN`、`SEND`、`WRITE RESULT`、`RECEIVED` の軌跡を出力するため、外部のシリアル監視ツールでも通信を確認できます。
+
+実シリアルポートテストでは、既定で接続済みの 5 ペア `COM1↔COM2`、`COM3↔COM4`、`COM5↔COM6`、`COM7↔COM8`、`COM9↔COM10` を使用します。各ペアの先頭は外部テスト側、後方は KSerial が開くポートです。異なる構成を使う場合は、`KSERIAL_PORT_PAIRS` 環境変数を `portA:portB,portC:portD` 形式で指定します。
+
+```powershell
+$env:KSERIAL_PORT_PAIRS = "COM11:COM12,COM13:COM14,COM15:COM16,COM17:COM18,COM19:COM20"
+.\gradlew.bat :composeApp:allKSerialTest
+```
+
+通常の `jvmTest`、`coreTest`、CI では、ローカルポートを占有しないよう実シリアルポートテストを意図的にスキップします。JVM テストのカバレッジレポートは次のコマンドで生成できます。
+
+```powershell
+.\gradlew.bat :composeApp:koverHtmlReportJvm
+```
+
+レポートは `composeApp/build/reports/kover/htmlJvm/index.html` から確認できます。
+
 ## 自動リリース
 
 アプリケーションのバージョンは `gradle.properties` の `appVersion` で管理します。バージョンと一致する `v*` タグ（例：`v1.0.0`）をプッシュすると `Build and Release` ワークフローが実行され、Windows、macOS、Linux でテストとパッケージ作成を行った後、`SHA256SUMS.txt` を含む GitHub Release を作成または更新します。
 
-通常の `master` へのプッシュと Pull Request では JVM テストのみを実行し、パッケージ作成や公開は行いません。GitHub Actions から手動実行した場合は、既定ではマルチプラットフォームのパッケージ作成だけを検証し、`publish` オプションを明示的に有効にした場合のみ Release を作成または更新します。
+通常の `master` へのプッシュと Pull Request では、実シリアルポートに依存しない JVM 単体/UI テストのみを実行し、パッケージ作成や公開は行いません。GitHub Actions から手動実行した場合は、既定ではマルチプラットフォームのパッケージ作成だけを検証し、`publish` オプションを明示的に有効にした場合のみ Release を作成または更新します。
 
 ## 技術スタック
 
