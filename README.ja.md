@@ -57,7 +57,7 @@ KSerial は Kotlin と Compose Multiplatform で構築され、組み込み開�
 
 1. **シリアル端末**を開き、`+` を選択してタブを作成します。
 2. 「接続と通信設定」でポートを選択し、ボーレートなどの通信条件を設定します。
-3. ポートを開き、画面下部の入力欄からテキストまたは HEX データを送信します。
+3. ポートを開き、画面下部の入力欄からテキストまたは HEX データを送信します。テキストモードは送信前に `\\`、`\'`、`\"`、`\?`、`\a`、`\b`、`\e`、`\f`、`\n`、`\r`、`\s`、`\t`、`\v`、8 進 `\ooo`、生バイト `\xHH`、Unicode `\uHHHH` / `\UHHHHHHHH`、制御文字 `\cX` を展開します。
 4. 必要に応じて繰り返し送信、クイック送信、キーワード強調、ログフィルター、TX/RX 保存を有効にします。
 
 機器を模擬する場合は **デバイス模擬** でルール設定を読み込み、ポート間でデータを転送する場合は **シリアルブリッジ** で端点とルートの設定を読み込みます。
@@ -89,7 +89,7 @@ KSerial は Kotlin と Compose Multiplatform で構築され、組み込み開�
 | `preferences.hexDisplay` | 受信データを HEX 表示するか。 |
 | `preferences.hexSend` | 送信入力を HEX として解釈するか。 |
 | `preferences.saveSend` / `saveReceive` | 送信・受信データを保存するか。 |
-| `preferences.quickCommandsText` | クイック送信コマンド。1 行に 1 件、エスケープシーケンス対応。 |
+| `preferences.quickCommandsText` | クイック送信コマンド。1 行に 1 件、テキスト送信と同じエスケープ規則を使用。 |
 | `preferences.highlightEnabled` / `highlightIgnoreCase` / `highlightKeywords` | キーワード強調の有効状態、大文字小文字の規則、キーワード一覧。 |
 | `preferences.logQuery` / `logOnlyMatches` | 最後のログ検索文字列と、一致項目だけを表示するか。 |
 | `preferences.logAutoScroll` | ログを自動的に末尾までスクロールするか。 |

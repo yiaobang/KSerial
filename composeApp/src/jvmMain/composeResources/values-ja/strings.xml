@@ -70,7 +70,7 @@
     <string name="opt_ignore_case">大文字小文字を無視</string>
 
     <string name="quick_send_empty">1行に1つのクイックコマンド</string>
-    <string name="quick_send_hint">\\r と \\n は送信時に CR/LF に変換されます</string>
+    <string name="quick_send_hint">テキスト送信は制御文字、8/16 進、Unicode、\\cX に対応。README 参照</string>
     <string name="history_empty">送信に成功したコマンドがここに表示されます</string>
     <string name="history_keyboard_hint">1 行入力では ↑ / ↓ で履歴を移動できます</string>
     <string name="action_use_history">このコマンドを使用</string>

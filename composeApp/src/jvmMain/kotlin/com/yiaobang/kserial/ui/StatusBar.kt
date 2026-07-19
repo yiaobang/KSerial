@@ -11,6 +11,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -71,7 +73,9 @@ fun AppStatusBar(vm: SerialViewModel) {
                 .weight(1f)
                 .fillMaxHeight()
                 .background(colors.primary.copy(alpha = 0.12f))
-                .clickable { vm.clearTx() },
+                .clickable { vm.clearTx() }
+                // 整块计数区域都可点击重置，语义描述使键盘/辅助技术也能稳定定位该操作。
+                .semantics { contentDescription = "${s.labelTx} ${vm.txCount}" },
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -86,7 +90,8 @@ fun AppStatusBar(vm: SerialViewModel) {
                 .weight(1f)
                 .fillMaxHeight()
                 .background(colors.success.copy(alpha = 0.12f))
-                .clickable { vm.clearRx() },
+                .clickable { vm.clearRx() }
+                .semantics { contentDescription = "${s.labelRx} ${vm.rxCount}" },
             contentAlignment = Alignment.Center
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {

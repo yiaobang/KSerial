@@ -36,6 +36,7 @@ import com.yiaobang.kserial.utils.toHexString
 
 @Composable
 fun SendHistoryPanel(vm: SerialViewModel) {
+    // 历史保存原始输入，展示时才把控制字符转换为可见形式。
     val colors = LocalAppColors.current
     val strings = LocalAppStrings.current
     val history = vm.sendHistory.entries
@@ -88,6 +89,7 @@ fun SendHistoryPanel(vm: SerialViewModel) {
 
 @Composable
 fun ProtocolToolsPanel(vm: SerialViewModel) {
+    // 校验和与分帧预览使用最终发送字节，确保文本转义和 HEX 规则一致。
     val colors = LocalAppColors.current
     val strings = LocalAppStrings.current
     var algorithm by remember { mutableStateOf(ChecksumAlgorithm.CRC16_MODBUS) }
@@ -98,6 +100,7 @@ fun ProtocolToolsPanel(vm: SerialViewModel) {
     val checksum = remember(vm.inputText, vm.prefs.hexSend, algorithm) { vm.checksum(algorithm) }
     val frameResult = remember(vm.inputText, vm.prefs.hexSend, frameMode, frameSize, delimiterHex) {
         val input = vm.inputBytesOrNull() ?: return@remember null
+        // 编辑中的非法参数只让预览不可用，不应抛异常打断 Compose 重组。
         runCatching {
             when (frameMode) {
                 FrameMode.FIXED -> FrameParser.fixedLength(input, frameSize.toInt())
@@ -230,6 +233,7 @@ private fun ByteArray.readableHex(): String = toHexString().chunked(2).joinToStr
 
 @Composable
 fun ConfigValidationSummary(issues: List<ConfigIssue>) {
+    // 控制面板空间有限，只展示前五项；完整问题列表仍保存在 ViewModel。
     val colors = LocalAppColors.current
     val strings = LocalAppStrings.current
     if (issues.isEmpty()) {

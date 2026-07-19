@@ -57,7 +57,7 @@ KSerial 使用 Kotlin 和 Compose Multiplatform 构建，面向嵌入式开发�
 
 1. 打开 **串口终端**，点击 `+` 新建标签页。
 2. 在右侧“连接与通信设置”中选择串口，并设置波特率等通信参数。
-3. 打开串口，在底部输入区发送文本或 HEX 数据。
+3. 打开串口，在底部输入区发送文本或 HEX 数据。文本模式会在发送前完整解析转义序列：`\\`、`\'`、`\"`、`\?`、`\a`、`\b`、`\e`、`\f`、`\n`、`\r`、`\s`、`\t`、`\v`、八进制 `\ooo`、原始字节 `\xHH`、Unicode `\uHHHH` / `\UHHHHHHHH`，以及控制字符 `\cX`。
 4. 根据需要启用循环发送、快捷发送、关键词高亮、日志过滤或 TX/RX 数据保存。
 
 需要模拟设备时，在 **设备模拟** 中加载规则配置；需要在多个串口之间转发数据时，在 **串口桥接** 中加载端点与路由配置。
@@ -89,7 +89,7 @@ KSerial 使用 Kotlin 和 Compose Multiplatform 构建，面向嵌入式开发�
 | `preferences.hexDisplay` | 接收内容是否以 HEX 显示。 |
 | `preferences.hexSend` | 发送输入是否按 HEX 解析。 |
 | `preferences.saveSend` / `saveReceive` | 是否保存发送、接收数据。 |
-| `preferences.quickCommandsText` | 快捷发送命令，每行一条，可使用转义字符。 |
+| `preferences.quickCommandsText` | 快捷发送命令，每行一条；使用与文本发送相同的转义规则。 |
 | `preferences.highlightEnabled` / `highlightIgnoreCase` / `highlightKeywords` | 关键词高亮开关、大小写规则和关键词列表。 |
 | `preferences.logQuery` / `logOnlyMatches` | 最后的日志搜索内容，以及是否只显示匹配项。 |
 | `preferences.logAutoScroll` | 日志是否自动滚动到底部。 |

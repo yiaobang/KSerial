@@ -13,6 +13,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import javax.imageio.ImageIO
 
+/** 集中封装 AWT 桌面能力，避免 Compose UI 到处直接操作剪贴板和原生文件对话框。 */
 object DesktopActions {
     private const val APP_ICON_RESOURCE =
         "composeResources/com.yiaobang.kserial.resources/drawable/app_icon.png"
@@ -35,6 +36,7 @@ object DesktopActions {
     }
 
     fun selectConfigFile(dialogTitle: String): File? {
+        // 打开对话框前补齐 conf 目录和样例，使首次使用也能直接看到可加载文件。
         AppPaths.initializeConfigDirectory()
         return showFileDialog(
             title = dialogTitle,
@@ -75,6 +77,7 @@ object DesktopActions {
         initialFile: String? = null,
         filenameFilter: FilenameFilter? = null
     ): File? {
+        // 临时 owner 用于给系统对话框设置 KSerial 图标，finally 中必须显式释放 AWT 资源。
         val owner = Frame("KSerial").apply {
             appIcon?.let { iconImage = it }
         }

@@ -29,12 +29,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.UUID
 
+/** 未提供显式 routes 时使用的动态桥接拓扑。 */
 enum class GatewayMode(val label: String) {
     OneToOne("一对一"),
     OneToMany("一对多"),
     ManyToMany("多对多")
 }
 
+/** 单个桥接端点的串口配置、连接状态、计数器和独占租约。 */
 class GatewayEndpoint(
     val index: Int,
     val id: String,
@@ -54,6 +56,7 @@ class GatewayEndpoint(
     var leasedPort: String? = null
 }
 
+/** 配置文件中的有向路由；一个来源集合可以映射到多个目标。 */
 class GatewayRoute(
     val name: String,
     val sourceIds: Set<String>,
@@ -61,6 +64,10 @@ class GatewayRoute(
     val enabled: Boolean
 )
 
+/**
+ * 串口桥接业务状态：管理多个物理端点、解析路由并转发原始字节。
+ * UI 不直接持有 SerialComm，页面销毁时可在这里统一释放所有端口。
+ */
 class GatewayViewModel : ViewModel() {
     val endpoints = mutableStateListOf<GatewayEndpoint>()
     val routes = mutableStateListOf<GatewayRoute>()
@@ -80,6 +87,7 @@ class GatewayViewModel : ViewModel() {
     init {
         PortMonitor.start()
         resetDefaultEndpoints()
+        // 系统端口消失时立即释放对应租约，避免 UI 继续显示已连接。
         viewModelScope.launch {
             PortMonitor.availablePorts.collect { ports ->
                 endpoints
@@ -96,6 +104,7 @@ class GatewayViewModel : ViewModel() {
     }
 
     fun loadConfig(file: File) {
+        // 先完整校验；存在 ERROR 时展示问题，但不应用不完整的端点和路由。
         val validation = ConfigValidator.validateGateway(file, language)
         configIssues.clear()
         configIssues.addAll(validation.issues)
@@ -137,6 +146,7 @@ class GatewayViewModel : ViewModel() {
             if (config.hasPath("highlight")) {
                 applyHighlightConfig(config.getConfig("highlight"))
             }
+            // 一次性替换端点，防止新旧监听器或租约交叉残留。
             replaceEndpoints(loadedEndpoints)
             routes.clear()
             routes.addAll(loadedRoutes)
@@ -165,6 +175,7 @@ class GatewayViewModel : ViewModel() {
             addLog("${endpoint.name}: $port 在网关配置中重复", LogType.INFO)
             return
         }
+        // 租约先于底层 openPort 获取，阻止其他页面并发打开同一串口。
         if (!SerialPortLeaseRegistry.acquire(port, endpoint.leaseOwner)) {
             val owner = SerialPortLeaseRegistry.ownerOf(port) ?: "其他页面"
             addLog("${endpoint.name}: $port 已被 $owner 占用", LogType.INFO)
@@ -217,6 +228,7 @@ class GatewayViewModel : ViewModel() {
     }
 
     private fun replaceEndpoints(newEndpoints: List<GatewayEndpoint>) {
+        // 旧端点先解除监听和租约，随后才给新端点注册数据回调。
         endpoints.forEach {
             it.serialComm.closePort()
             it.serialComm.clearDataListeners()
@@ -231,6 +243,7 @@ class GatewayViewModel : ViewModel() {
     }
 
     private fun onEndpointData(source: GatewayEndpoint, data: ByteArray) {
+        // 串口回调来自本地线程；Compose 状态与路由决策统一切回 Main 更新。
         viewModelScope.launch(Dispatchers.Main) {
             source.rxCount += data.size
             addLog("${source.name} RX ${formatData(data)}", LogType.RX)
@@ -249,6 +262,7 @@ class GatewayViewModel : ViewModel() {
     }
 
     private fun resolveTargets(source: GatewayEndpoint): List<GatewayEndpoint> {
+        // 显式 routes 优先于页面动态模式，禁用路由和来源自身在这里过滤。
         if (routes.isNotEmpty()) {
             val targetIds = routes
                 .filter { it.enabled && source.id in it.sourceIds }
@@ -295,6 +309,7 @@ class GatewayViewModel : ViewModel() {
     }
 
     public override fun onCleared() {
+        // 桥接可能同时占用多个端口，页面销毁必须逐一关闭并释放租约。
         endpoints.forEach {
             it.serialComm.closePort()
             it.serialComm.clearDataListeners()

@@ -6,6 +6,7 @@ import com.yiaobang.kserial.i18n.Language
 import com.yiaobang.kserial.utils.hexToByteArray
 import java.io.File
 
+/** 配置问题分级：警告允许继续加载，错误会阻止配置生效。 */
 enum class ConfigIssueSeverity { WARNING, ERROR }
 
 data class ConfigIssue(
@@ -13,6 +14,7 @@ data class ConfigIssue(
     val message: String
 )
 
+/** 解析后的 HOCON 节点及所有可一次性展示给用户的问题。 */
 data class ConfigValidationResult(
     val config: Config?,
     val issues: List<ConfigIssue>
@@ -20,6 +22,10 @@ data class ConfigValidationResult(
     val isValid: Boolean get() = config != null && issues.none { it.severity == ConfigIssueSeverity.ERROR }
 }
 
+/**
+ * 模拟器和桥接配置的结构/语义校验器。
+ * 校验阶段只读取文件，不打开串口；这样 UI 可以先完整展示问题，再决定是否应用配置。
+ */
 object ConfigValidator {
     fun validateSimulator(file: File, language: Language): ConfigValidationResult = runCatching {
         val parsed = ConfigFactory.parseFile(file).resolve()
@@ -57,6 +63,7 @@ object ConfigValidator {
             )
         }
 
+        // 定长分帧和分隔符分帧可同时声明，但运行时与校验器都以 packSize 为优先。
         val packSizeRaw = config.optionalString("packSize")
         val packSize = packSizeRaw?.toIntOrNull()
         val delimiterRaw = config.optionalString("delimiter")
@@ -79,6 +86,7 @@ object ConfigValidator {
             issues += error(language, "delimiter 为空或格式无效", "delimiter is empty or invalid", "delimiter が空、または形式が無効です")
         }
 
+        // 同时兼容推荐的 rules 数组和早期版本的 replies 对象写法。
         val rules = when {
             config.hasPath("rules") -> config.getConfigList("rules").map { rule ->
                 rule.getString("request") to rule.getString("response")
@@ -143,6 +151,7 @@ object ConfigValidator {
             validateEndpoint(endpoint, language, "endpoints[$index]", required = true, issues)
         }
 
+        // 路由通过逻辑 id 关联端点，因此 id 与物理串口都必须在同一配置内唯一。
         val ids = endpoints.mapIndexed { index, endpoint -> endpoint.optionalString("id") ?: "endpoint$index" }
         ids.groupBy { it }.filterValues { it.size > 1 }.keys.forEach { id ->
             issues += error(language, "端点 id 重复：$id", "Duplicate endpoint id: $id", "端点 ID が重複しています：$id")
@@ -153,6 +162,7 @@ object ConfigValidator {
         }
 
         if (config.hasPath("routes")) {
+            // 路由引用在加载前解析，避免运行中才发现目标不存在或形成无意义的自转发。
             val idSet = ids.toSet()
             config.getConfigList("routes").forEachIndexed { index, route ->
                 val name = route.optionalString("name") ?: "route${index + 1}"
@@ -221,6 +231,7 @@ object ConfigValidator {
     private fun Config.optionalInt(path: String): Int? = optionalString(path)?.toIntOrNull()
     private fun Config.optionalStringList(path: String): List<String> {
         if (!hasPath(path)) return emptyList()
+        // HOCON 标准数组和逗号/分号分隔的简写都接受，便于手工编辑配置。
         return runCatching { getStringList(path) }.getOrElse {
             optionalString(path)?.split(',', ';', '\n', '\r')?.map(String::trim)?.filter(String::isNotEmpty).orEmpty()
         }

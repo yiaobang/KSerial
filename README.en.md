@@ -57,7 +57,7 @@ Release packages include the application runtime, so end users normally do not n
 
 1. Open **Serial Console** and select `+` to create a tab.
 2. Choose a port and set its baud rate and other parameters under “Connection & Settings.”
-3. Open the port and send text or HEX data from the input area at the bottom.
+3. Open the port and send text or HEX data from the input area at the bottom. Before sending, text mode fully decodes `\\`, `\'`, `\"`, `\?`, `\a`, `\b`, `\e`, `\f`, `\n`, `\r`, `\s`, `\t`, `\v`, octal `\ooo`, raw-byte `\xHH`, Unicode `\uHHHH` / `\UHHHHHHHH`, and control-character `\cX` escapes.
 4. Enable loop sending, quick commands, keyword highlighting, log filters, or TX/RX persistence as needed.
 
 To emulate a device, load a rule file in **Device Simulator**. To forward data across ports, load endpoint and route configuration in **Serial Bridge**.
@@ -89,7 +89,7 @@ KSerial writes `settings.conf` as comment-free HOCON. Manually added comments ca
 | `preferences.hexDisplay` | Whether received data is displayed as HEX. |
 | `preferences.hexSend` | Whether send input is interpreted as HEX. |
 | `preferences.saveSend` / `saveReceive` | Whether transmitted and received data are saved. |
-| `preferences.quickCommandsText` | Quick-send commands, one per line, with escape-sequence support. |
+| `preferences.quickCommandsText` | Quick-send commands, one per line, using the same escapes as text send. |
 | `preferences.highlightEnabled` / `highlightIgnoreCase` / `highlightKeywords` | Keyword highlight switch, case rule, and keyword list. |
 | `preferences.logQuery` / `logOnlyMatches` | Last log query and whether only matching entries are shown. |
 | `preferences.logAutoScroll` | Whether logs automatically scroll to the bottom. |

@@ -70,7 +70,7 @@
     <string name="opt_ignore_case">忽略大小写</string>
 
     <string name="quick_send_empty">每行一条快捷命令</string>
-    <string name="quick_send_hint">\\r 和 \\n 会在发送时转成回车换行</string>
+    <string name="quick_send_hint">文本发送支持控制字符、八/十六进制、Unicode 与 \\cX 转义，详见 README</string>
     <string name="history_empty">发送成功后，命令会显示在这里</string>
     <string name="history_keyboard_hint">单行输入时可用 ↑ / ↓ 浏览历史</string>
     <string name="action_use_history">使用这条命令</string>

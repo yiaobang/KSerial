@@ -70,7 +70,7 @@
     <string name="opt_ignore_case">Ignore Case</string>
 
     <string name="quick_send_empty">One quick command per line</string>
-    <string name="quick_send_hint">\\r and \\n are sent as CR/LF</string>
+    <string name="quick_send_hint">Text send supports control, octal/hex, Unicode, and \\cX escapes; see README</string>
     <string name="history_empty">Successfully sent commands will appear here</string>
     <string name="history_keyboard_hint">Use ↑ / ↓ to browse history in single-line input</string>
     <string name="action_use_history">Use this command</string>

@@ -1,5 +1,9 @@
 package com.yiaobang.kserial.serial
 
+/**
+ * 进程内串口独占登记表。底层驱动是否允许重复打开因平台而异，
+ * 因此在终端标签、模拟器和桥接之间先用统一租约给出可预测的冲突行为。
+ */
 object SerialPortLeaseRegistry {
     private val leases = mutableMapOf<String, String>()
 
@@ -32,6 +36,7 @@ object SerialPortLeaseRegistry {
     }
 
     private fun leaseKey(portName: String): String {
+        // Windows COM 名不区分大小写；其他平台保留原名称以免破坏设备路径。
         val trimmed = portName.trim()
         return if (trimmed.matches(Regex("COM\\d+", RegexOption.IGNORE_CASE))) trimmed.uppercase() else trimmed
     }

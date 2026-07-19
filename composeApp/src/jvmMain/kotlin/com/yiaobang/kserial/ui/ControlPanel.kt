@@ -113,11 +113,12 @@ fun QuickSendPanel(vm: SerialViewModel) {
             commands.chunked(2).forEach { row ->
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     row.forEach { command ->
+                        // 保留输入框中的可见转义，由 ViewModel 与普通发送共用同一套完整解析规则。
                         QuickCommandButton(
                             text = command,
                             modifier = Modifier.weight(1f),
-                            enabled = vm.canSend(expandCommandEscapes(command))
-                        ) { vm.sendData(expandCommandEscapes(command)) }
+                            enabled = vm.canSend(command)
+                        ) { vm.sendData(command) }
                     }
                     if (row.size == 1) Spacer(Modifier.weight(1f))
                 }
@@ -142,13 +143,6 @@ fun QuickSendPanel(vm: SerialViewModel) {
         }
         Text(strings.quickSendHint, fontSize = 11.sp, color = colors.onSurface.copy(alpha = 0.48f))
     }
-}
-
-private fun expandCommandEscapes(command: String): String {
-    return command
-        .replace("\\r", "\r")
-        .replace("\\n", "\n")
-        .replace("\\t", "\t")
 }
 
 /**
