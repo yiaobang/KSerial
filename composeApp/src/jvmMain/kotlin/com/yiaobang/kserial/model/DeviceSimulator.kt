@@ -21,6 +21,9 @@ abstract class DeviceSimulator(protected val replies: Map<String, ByteArray>) : 
     /** 绑定的串口通信实例，用于自动回复 */
     var serialComm: SerialComm? = null
 
+    /** 自动回复完成回调，用于同步页面日志、计数和数据落盘状态 */
+    var onReply: ((data: ByteArray, written: Int) -> Unit)? = null
+
     /**
      * 核心回复逻辑：根据收到的数据，在应答表中查找并发送对应回复
      */
@@ -28,7 +31,8 @@ abstract class DeviceSimulator(protected val replies: Map<String, ByteArray>) : 
         val request = bytes.toHexString()
         val replyData = replies[request]
         if (replyData != null) {
-            serialComm?.write(replyData)
+            val written = serialComm?.write(replyData) ?: -1
+            onReply?.invoke(replyData, written)
         }
         dataBuffer.clear()
     }
@@ -132,5 +136,6 @@ abstract class DeviceSimulator(protected val replies: Map<String, ByteArray>) : 
     override fun close() {
         dataBuffer.clear()
         serialComm = null
+        onReply = null
     }
 }

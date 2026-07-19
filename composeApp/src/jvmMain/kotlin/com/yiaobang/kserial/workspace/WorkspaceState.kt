@@ -8,15 +8,24 @@ import androidx.compose.runtime.setValue
 import com.yiaobang.kserial.SerialViewModel
 import com.yiaobang.kserial.feature.GatewayViewModel
 import com.yiaobang.kserial.model.AppPreferences
+import com.yiaobang.kserial.model.AppSettingsStore
+import com.yiaobang.kserial.model.LogType
+import com.yiaobang.kserial.model.PersistedSettings
+import com.yiaobang.kserial.model.SendHistoryState
+import com.yiaobang.kserial.model.applyPersisted
+import com.yiaobang.kserial.model.toPersisted
+import com.yiaobang.kserial.model.toPersistedAppearance
+import com.yiaobang.kserial.model.toPersistedPreferences
 import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
+import java.nio.file.Files
 
 private const val MAIN_HOST_ID = 0
 
 enum class WorkspaceSection(val label: String) {
-    Basic("基础"),
-    Simulator("自动回复"),
-    Gateway("串口网关")
+    Basic("串口终端"),
+    Simulator("设备模拟"),
+    Gateway("串口桥接")
 }
 
 class AppTab(
@@ -36,8 +45,16 @@ class WindowHostState(
     var selectedSection by mutableStateOf(WorkspaceSection.Basic)
 }
 
-class WorkspaceState {
-    val prefs = AppPreferences()
+class WorkspaceState(
+    private val settingsStore: AppSettingsStore = AppSettingsStore()
+) {
+    private val firstRun = !Files.exists(settingsStore.settingsFile)
+    private val settingsLoadResult = settingsStore.load()
+    private val initialSettings = settingsLoadResult.settings
+    val prefs = AppPreferences().apply {
+        applyPersisted(initialSettings.appearance, initialSettings.preferences)
+    }
+    val sendHistory = SendHistoryState().apply { restore(initialSettings.sendHistory) }
     val mainHost = WindowHostState(MAIN_HOST_ID)
     val floatingHosts = mutableStateListOf<WindowHostState>()
 
@@ -47,7 +64,11 @@ class WorkspaceState {
     private var nextHostId = 1
 
     init {
-        openTab(WorkspaceSection.Basic, mainHost.id, autoConnectBasic = true)
+        val tabId = openTab(WorkspaceSection.Basic, mainHost.id, autoConnectBasic = false)
+        settingsLoadResult.warning?.let { warning ->
+            tab(tabId)?.serialViewModel?.addLog(warning, LogType.INFO)
+        }
+        if (firstRun) saveSettings()
     }
 
     fun tab(tabId: Int?): AppTab? = tabId?.let { tabs[it] }
@@ -95,7 +116,11 @@ class WorkspaceState {
                 )
                 WorkspaceSection.Gateway -> null
             },
-            gatewayViewModel = if (section == WorkspaceSection.Gateway) GatewayViewModel() else null
+            gatewayViewModel = if (section == WorkspaceSection.Gateway) {
+                GatewayViewModel().apply { language = prefs.currentLanguage }
+            } else {
+                null
+            }
         )
         tabs[id] = tab
         host.tabIds += id
@@ -139,7 +164,7 @@ class WorkspaceState {
         }
 
         if (mainHost.tabIds.isEmpty() && floatingHosts.isEmpty()) {
-            openTab(WorkspaceSection.Basic, mainHost.id, autoConnectBasic = true)
+            openTab(WorkspaceSection.Basic, mainHost.id, autoConnectBasic = false)
         }
     }
 
@@ -210,10 +235,16 @@ class WorkspaceState {
         prefs.switchLanguage()
         tabs.values.forEach { tab ->
             tab.serialViewModel?.prefs?.currentLanguage = prefs.currentLanguage
+            tab.gatewayViewModel?.language = prefs.currentLanguage
         }
     }
 
+    fun toggleAlwaysOnTop() {
+        prefs.isAlwaysOnTop = !prefs.isAlwaysOnTop
+    }
+
     fun disposeAll() {
+        saveSettings()
         tabs.values.toList().forEach { disposeTab(it.id) }
         tabs.clear()
         mainHost.tabIds.clear()
@@ -228,11 +259,32 @@ class WorkspaceState {
     ): SerialViewModel {
         return SerialViewModel(
             autoConnectFirstPort = autoConnectFirstPort,
-            syncOnConfigChange = syncOnConfigChange
+            syncOnConfigChange = syncOnConfigChange,
+            sendHistory = sendHistory
         ).also {
+            val source = tabs.values.lastOrNull { tab -> tab.serialViewModel != null }?.serialViewModel
+            if (source != null) {
+                it.config.applyPersisted(source.config.toPersisted())
+                it.prefs.applyPersisted(prefs.toPersistedAppearance(), source.prefs.toPersistedPreferences())
+            } else {
+                it.config.applyPersisted(initialSettings.serial)
+                it.prefs.applyPersisted(initialSettings.appearance, initialSettings.preferences)
+            }
             it.prefs.currentLanguage = prefs.currentLanguage
             it.prefs.isDark = prefs.isDark
         }
+    }
+
+    fun saveSettings(): Result<java.nio.file.Path> {
+        val source = tab(mainHost.activeTabBySection[WorkspaceSection.Basic])?.serialViewModel
+            ?: tabs.values.firstNotNullOfOrNull { it.serialViewModel }
+        val settings = PersistedSettings(
+            appearance = prefs.toPersistedAppearance(),
+            serial = source?.config?.toPersisted() ?: initialSettings.serial,
+            preferences = source?.prefs?.toPersistedPreferences() ?: initialSettings.preferences,
+            sendHistory = sendHistory.snapshot()
+        )
+        return settingsStore.save(settings)
     }
 
     private fun nextSectionTitleIndex(section: WorkspaceSection): Int {

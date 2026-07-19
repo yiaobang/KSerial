@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yiaobang.kserial.resources.Res
 import com.yiaobang.kserial.resources.app_icon
+import com.yiaobang.kserial.i18n.LocalAppStrings
 import com.yiaobang.kserial.theme.LocalAppColors
 import org.jetbrains.compose.resources.painterResource
 
@@ -36,6 +37,7 @@ fun AppTopBar(
     onClose: () -> Unit
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -55,11 +57,11 @@ fun AppTopBar(
         Text(title, style = TextStyle(fontWeight = FontWeight.Bold, fontSize = 14.sp, color = colors.onSurface))
         Spacer(Modifier.weight(1f))
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-            TopIconBtn(Icons.Default.PushPin, onTop, tint = if (isTop) colors.primary else colors.onSurface.copy(0.6f))
-            TopIconBtn(Icons.Default.Translate, onLanguage)
-            TopIconBtn(Icons.Default.Palette, onTheme)
-            TopIconBtn(Icons.Default.Remove, onMinimize)
-            TopIconBtn(Icons.Default.Close, onClose)
+            TopIconBtn(Icons.Default.PushPin, strings.actionPinWindow, onTop, tint = if (isTop) colors.primary else colors.onSurface.copy(0.6f))
+            TopIconBtn(Icons.Default.Translate, strings.actionLanguage, onLanguage)
+            TopIconBtn(Icons.Default.Palette, strings.actionTheme, onTheme)
+            TopIconBtn(Icons.Default.Remove, strings.actionMinimize, onMinimize)
+            TopIconBtn(Icons.Default.Close, strings.actionCloseWindow, onClose)
         }
     }
 }
@@ -70,10 +72,11 @@ fun AppTopBar(
 @Composable
 private fun TopIconBtn(
     icon: ImageVector,
+    description: String,
     onClick: () -> Unit,
     tint: Color = LocalAppColors.current.onSurface.copy(0.6f)
 ) {
     IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
-        Icon(icon, null, modifier = Modifier.size(18.dp), tint = tint)
+        Icon(icon, description, modifier = Modifier.size(18.dp), tint = tint)
     }
 }

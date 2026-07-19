@@ -1,0 +1,36 @@
+package com.yiaobang.kserial.utils
+
+import com.yiaobang.kserial.model.LogEntry
+import java.nio.file.Files
+import java.nio.file.Path
+
+enum class LogExportFormat(val extension: String) {
+    TEXT("txt"),
+    CSV("csv")
+}
+
+object LogExporter {
+    fun render(logs: List<LogEntry>, format: LogExportFormat): String = when (format) {
+        LogExportFormat.TEXT -> logs.joinToString("\n") { log ->
+            "[${log.time}] ${log.type.name.padEnd(4)} ${log.content}"
+        }
+        LogExportFormat.CSV -> buildString {
+            appendLine("time,type,content")
+            logs.forEach { log ->
+                append(csv(log.time))
+                append(',')
+                append(csv(log.type.name))
+                append(',')
+                appendLine(csv(log.content))
+            }
+        }.trimEnd('\n', '\r')
+    }
+
+    fun write(logs: List<LogEntry>, format: LogExportFormat, path: Path): Path {
+        path.parent?.let { parent -> Files.createDirectories(parent) }
+        Files.writeString(path, render(logs, format))
+        return path
+    }
+
+    private fun csv(value: String): String = "\"${value.replace("\"", "\"\"")}\""
+}

@@ -1,33 +1,18 @@
 package com.yiaobang.kserial
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.automirrored.filled.Reply
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Power
-import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -35,12 +20,18 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yiaobang.kserial.feature.GatewayEndpoint
@@ -50,20 +41,18 @@ import com.yiaobang.kserial.i18n.AppStrings
 import com.yiaobang.kserial.i18n.LocalAppStrings
 import com.yiaobang.kserial.i18n.ProvideAppStrings
 import com.yiaobang.kserial.model.KeywordHighlightConfig
+import com.yiaobang.kserial.model.LogEntry
 import com.yiaobang.kserial.model.LogType
 import com.yiaobang.kserial.theme.CupertinoTheme
 import com.yiaobang.kserial.theme.LocalAppColors
-import com.yiaobang.kserial.ui.ActionButton
-import com.yiaobang.kserial.ui.AppStatusBar
-import com.yiaobang.kserial.ui.AppTopBar
-import com.yiaobang.kserial.ui.CardPanel
-import com.yiaobang.kserial.ui.ControlPanel
-import com.yiaobang.kserial.ui.HighlightEditor
-import com.yiaobang.kserial.ui.LogFilterEditor
+import com.yiaobang.kserial.ui.*
+import com.yiaobang.kserial.utils.HexInputParser
+import com.yiaobang.kserial.utils.DesktopActions
+import com.yiaobang.kserial.utils.LogExportFormat
+import com.yiaobang.kserial.utils.LogExporter
 import com.yiaobang.kserial.workspace.WindowHostState
 import com.yiaobang.kserial.workspace.WorkspaceSection
 import com.yiaobang.kserial.workspace.WorkspaceState
-import com.yiaobang.kserial.utils.HexInputParser
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -83,7 +72,7 @@ fun WorkspaceApp(
                     AppTopBar(
                         title = workspace.hostTitle(host),
                         isTop = workspace.prefs.isAlwaysOnTop,
-                        onTop = { workspace.prefs.isAlwaysOnTop = !workspace.prefs.isAlwaysOnTop },
+                        onTop = { workspace.toggleAlwaysOnTop() },
                         onLanguage = { workspace.switchLanguage() },
                         onTheme = { workspace.switchTheme() },
                         onMinimize = onMinimize,
@@ -123,7 +112,7 @@ private fun WorkspaceSidebar(
     val strings = LocalAppStrings.current
     Column(
         modifier = Modifier
-            .width(164.dp)
+            .width(188.dp)
             .fillMaxHeight()
             .background(colors.surface.copy(alpha = 0.96f))
             .border(width = 1.dp, color = colors.border.copy(alpha = 0.38f))
@@ -139,19 +128,19 @@ private fun WorkspaceSidebar(
         )
         SidebarItem(
             title = sectionLabel(WorkspaceSection.Basic, strings),
-            icon = Icons.Default.Power,
+            icon = Icons.Default.Terminal,
             selected = selectedSection == WorkspaceSection.Basic,
             onClick = { onSelectSection(WorkspaceSection.Basic) }
         )
         SidebarItem(
             title = sectionLabel(WorkspaceSection.Simulator, strings),
-            icon = Icons.AutoMirrored.Filled.Reply,
+            icon = Icons.Default.Memory,
             selected = selectedSection == WorkspaceSection.Simulator,
             onClick = { onSelectSection(WorkspaceSection.Simulator) }
         )
         SidebarItem(
             title = sectionLabel(WorkspaceSection.Gateway, strings),
-            icon = Icons.Default.Share,
+            icon = Icons.AutoMirrored.Filled.CompareArrows,
             selected = selectedSection == WorkspaceSection.Gateway,
             onClick = { onSelectSection(WorkspaceSection.Gateway) }
         )
@@ -190,7 +179,7 @@ private fun SidebarItem(
     ) {
         Icon(
             imageVector = icon,
-            contentDescription = null,
+            contentDescription = title,
             tint = if (selected) colors.primary else colors.onSurface.copy(alpha = 0.62f),
             modifier = Modifier.size(18.dp)
         )
@@ -198,7 +187,9 @@ private fun SidebarItem(
             text = title,
             color = if (selected) colors.primary else colors.onSurface,
             fontSize = 13.sp,
-            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -244,6 +235,7 @@ private fun NewSectionTabButton(
     onClick: () -> Unit
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Box(
         modifier = Modifier
             .width(34.dp)
@@ -256,7 +248,7 @@ private fun NewSectionTabButton(
     ) {
         Icon(
             imageVector = Icons.Default.Add,
-            contentDescription = null,
+            contentDescription = strings.actionNewTab,
             modifier = Modifier.size(18.dp),
             tint = colors.onSurface.copy(alpha = 0.76f)
         )
@@ -274,6 +266,7 @@ private fun WorkspaceTabChip(
     onClose: () -> Unit
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     Row(
         modifier = Modifier
             .height(34.dp)
@@ -300,7 +293,7 @@ private fun WorkspaceTabChip(
         ) {
             Icon(
                 imageVector = if (floating) Icons.Default.Home else Icons.AutoMirrored.Filled.OpenInNew,
-                contentDescription = null,
+                contentDescription = if (floating) strings.actionMergeTab else strings.actionDetachTab,
                 modifier = Modifier.size(15.dp),
                 tint = colors.onSurface.copy(alpha = 0.58f)
             )
@@ -308,7 +301,7 @@ private fun WorkspaceTabChip(
         IconButton(onClick = onClose, modifier = Modifier.size(26.dp)) {
             Icon(
                 imageVector = Icons.Default.Close,
-                contentDescription = null,
+                contentDescription = strings.actionCloseTab,
                 modifier = Modifier.size(15.dp),
                 tint = colors.onSurface.copy(alpha = 0.58f)
             )
@@ -324,21 +317,60 @@ private fun WorkspaceContent(
 ) {
     val tab = workspace.activeTab(host)
     Box(modifier = modifier.fillMaxSize()) {
-        when (tab?.section) {
-            WorkspaceSection.Basic -> {
-                val viewModel = tab.serialViewModel ?: return
-                BasicSerialPage(viewModel = viewModel)
+        key(tab?.id) {
+            when (tab?.section) {
+                WorkspaceSection.Basic -> {
+                    tab.serialViewModel?.let { BasicSerialPage(viewModel = it) }
+                        ?: EmptyFeaturePage(host.selectedSection)
+                }
+                WorkspaceSection.Simulator -> {
+                    tab.serialViewModel?.let { SimulatorPage(viewModel = it) }
+                        ?: EmptyFeaturePage(host.selectedSection)
+                }
+                WorkspaceSection.Gateway -> {
+                    tab.gatewayViewModel?.let { GatewayPage(viewModel = it) }
+                        ?: EmptyFeaturePage(host.selectedSection)
+                }
+                null -> EmptyFeaturePage(host.selectedSection)
             }
-            WorkspaceSection.Simulator -> {
-                val viewModel = tab.serialViewModel ?: return
-                SimulatorPage(viewModel = viewModel)
-            }
-            WorkspaceSection.Gateway -> {
-                val viewModel = tab.gatewayViewModel ?: return
-                GatewayPage(viewModel = viewModel)
-            }
-            null -> EmptyFeaturePage(host.selectedSection)
         }
+    }
+}
+
+@Composable
+private fun ScrollableSidePanel(
+    width: Dp,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val scrollState = rememberScrollState()
+    val colors = LocalAppColors.current
+    Box(
+        modifier = Modifier
+            .width(width)
+            .fillMaxHeight()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(end = 12.dp)
+                .verticalScroll(scrollState),
+            content = content
+        )
+        VerticalScrollbar(
+            adapter = rememberScrollbarAdapter(scrollState),
+            modifier = Modifier
+                .align(Alignment.CenterEnd)
+                .fillMaxHeight()
+                .width(8.dp),
+            style = ScrollbarStyle(
+                minimalHeight = 36.dp,
+                thickness = 8.dp,
+                shape = RoundedCornerShape(4.dp),
+                hoverDurationMillis = 180,
+                unhoverColor = colors.border.copy(alpha = 0.62f),
+                hoverColor = colors.primary.copy(alpha = 0.72f)
+            )
+        )
     }
 }
 
@@ -349,7 +381,7 @@ private fun BasicSerialPage(
     val prefs = viewModel.prefs
     val listState = rememberLazyListState()
 
-    LaunchedEffect(prefs.loopSendEnabled, viewModel.isPortOpen) {
+    LaunchedEffect(prefs.loopSendEnabled, prefs.loopIntervalText, viewModel.isPortOpen) {
         if (prefs.loopSendEnabled && viewModel.isPortOpen) {
             viewModel.startLoopSend()
         } else {
@@ -369,7 +401,7 @@ private fun BasicSerialPage(
                 listState = listState,
                 modifier = Modifier.weight(1f)
             )
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            ScrollableSidePanel(width = 332.dp) {
                 ControlPanel(vm = viewModel)
             }
         }
@@ -384,20 +416,15 @@ private fun DataDisplayPanel(
     modifier: Modifier
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     val prefs = viewModel.prefs
+    var confirmClearLogs by remember { mutableStateOf(false) }
     val logBackground = if (prefs.isDark) Color(0xFF141414) else Color(0xFFF9F9F9)
-    val visibleLogs = remember(
-        viewModel.logs.size,
-        prefs.logFilter.query,
-        prefs.logFilter.onlyMatches,
-        prefs.logFilter.showTx,
-        prefs.logFilter.showRx,
-        prefs.logFilter.showInfo
-    ) {
-        viewModel.logs.filter { prefs.logFilter.accepts(it) }
+    val visibleLogs by remember(viewModel) {
+        derivedStateOf { viewModel.logs.filter { prefs.logFilter.accepts(it) } }
     }
 
-    LaunchedEffect(visibleLogs.size, prefs.logFilter.autoScroll) {
+    LaunchedEffect(visibleLogs.lastOrNull()?.id, prefs.logFilter.autoScroll) {
         if (prefs.logFilter.autoScroll && visibleLogs.isNotEmpty()) {
             listState.animateScrollToItem(visibleLogs.size)
         }
@@ -417,21 +444,33 @@ private fun DataDisplayPanel(
                     LogListHeader(
                         totalCount = viewModel.logs.size,
                         visibleCount = visibleLogs.size,
-                        query = prefs.logFilter.query
+                        query = prefs.logFilter.query,
+                        onCopyLogs = {
+                            DesktopActions.copyText(LogExporter.render(visibleLogs, LogExportFormat.TEXT))
+                                .onSuccess { viewModel.addLog(strings.logsCopied, LogType.INFO) }
+                                .onFailure { viewModel.addLog(strings.operationFailed(it.message.orEmpty()), LogType.INFO) }
+                        },
+                        onExportText = { exportSerialLogs(viewModel, visibleLogs, LogExportFormat.TEXT, strings) },
+                        onExportCsv = { exportSerialLogs(viewModel, visibleLogs, LogExportFormat.CSV, strings) },
+                        onClearLogs = { confirmClearLogs = true }
                     )
                     Spacer(Modifier.height(6.dp))
                 }
-                items(visibleLogs) { log ->
-                    LogLine(
-                        text = "[${log.time}] ${if (log.type == LogType.TX) "->" else "<-"} ${log.content}",
-                        baseColor = when (log.type) {
-                            LogType.TX -> colors.primary
-                            LogType.RX -> colors.success
-                            else -> colors.onSurface.copy(0.4f)
-                        },
-                        highlight = prefs.highlight,
-                        extraHighlight = prefs.logFilter.query
-                    )
+                if (visibleLogs.isEmpty()) {
+                    item { EmptyLogState() }
+                } else {
+                    items(visibleLogs, key = { it.id }) { log ->
+                        LogEntryRow(
+                            log = log,
+                            baseColor = when (log.type) {
+                                LogType.TX -> colors.primary
+                                LogType.RX -> colors.success
+                                else -> colors.onSurface.copy(0.4f)
+                            },
+                            highlight = prefs.highlight,
+                            extraHighlight = prefs.logFilter.query
+                        )
+                    }
                 }
             }
         }
@@ -445,15 +484,40 @@ private fun DataDisplayPanel(
                 .border(1.dp, colors.border.copy(alpha = 0.78f), RoundedCornerShape(7.dp))
         ) {
             val hexResult = remember(prefs.hexSend, viewModel.inputText) {
-                if (prefs.hexSend) HexInputParser.parse(viewModel.inputText) else null
+                if (prefs.hexSend && viewModel.inputText.isNotBlank()) {
+                    HexInputParser.parse(viewModel.inputText)
+                } else {
+                    null
+                }
             }
             BasicTextField(
                 value = viewModel.inputText,
-                onValueChange = { viewModel.inputText = it },
-                modifier = Modifier.fillMaxSize().padding(8.dp),
+                onValueChange = {
+                    viewModel.inputText = it
+                    viewModel.sendHistory.resetNavigation()
+                },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(8.dp)
+                    .onPreviewKeyEvent { event ->
+                        if (event.type != KeyEventType.KeyDown || viewModel.inputText.contains('\n')) return@onPreviewKeyEvent false
+                        when (event.key) {
+                            Key.DirectionUp -> { viewModel.previousHistory(); true }
+                            Key.DirectionDown -> { viewModel.nextHistory(); true }
+                            else -> false
+                        }
+                    },
                 textStyle = TextStyle(color = colors.onSurface, fontSize = 13.sp),
                 cursorBrush = SolidColor(colors.primary)
             )
+            if (viewModel.inputText.isBlank()) {
+                Text(
+                    text = LocalAppStrings.current.sendInputHint,
+                    modifier = Modifier.align(Alignment.TopStart).padding(8.dp),
+                    color = colors.onSurface.copy(alpha = 0.34f),
+                    fontSize = 13.sp
+                )
+            }
             if (hexResult != null) {
                 Row(
                     modifier = Modifier
@@ -474,12 +538,17 @@ private fun DataDisplayPanel(
                         enabled = hexResult.isValid && viewModel.inputText.isNotBlank(),
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
                     ) {
-                        Text("FORMAT", fontSize = 11.sp)
+                        Text(LocalAppStrings.current.btnFormatHex, fontSize = 11.sp)
                     }
                 }
             }
         }
     }
+    ConfirmClearLogsDialog(
+        visible = confirmClearLogs,
+        onConfirm = { viewModel.clearLogs(); confirmClearLogs = false },
+        onDismiss = { confirmClearLogs = false }
+    )
 }
 
 @Composable
@@ -499,14 +568,14 @@ private fun SimulatorPage(viewModel: SerialViewModel) {
                 listState = listState,
                 modifier = Modifier.weight(1f)
             )
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            ScrollableSidePanel(width = 332.dp) {
                 SimulatorControlPanel(viewModel)
             }
         }
         AppStatusBar(viewModel)
     }
 
-    LaunchedEffect(prefs.loopSendEnabled, viewModel.isPortOpen) {
+    LaunchedEffect(prefs.loopSendEnabled, prefs.loopIntervalText, viewModel.isPortOpen) {
         if (prefs.loopSendEnabled && viewModel.isPortOpen) viewModel.startLoopSend()
         else viewModel.stopLoopSend()
     }
@@ -517,9 +586,8 @@ private fun SimulatorControlPanel(vm: SerialViewModel) {
     val colors = LocalAppColors.current
     val strings = LocalAppStrings.current
     val config = vm.config
-    val prefs = vm.prefs
     Column(
-        modifier = Modifier.width(310.dp).fillMaxHeight(),
+        modifier = Modifier.width(320.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         CardPanel(title = strings.panelConfig) {
@@ -540,6 +608,7 @@ private fun SimulatorControlPanel(vm: SerialViewModel) {
                     color = colors.onSurface.copy(alpha = 0.68f),
                     fontSize = 12.sp
                 )
+                ConfigValidationSummary(vm.configIssues)
             }
             SummaryLine(strings.labelSerialPort, config.selectedPort.ifBlank { strings.notConfigured })
             SummaryLine(strings.labelBaudRate, config.baudRate.toString())
@@ -550,22 +619,54 @@ private fun SimulatorControlPanel(vm: SerialViewModel) {
                 ActionButton(
                     text = if (vm.isPortOpen) strings.btnClosePort else strings.btnOpenPort,
                     color = colors.primary,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    enabled = vm.isPortOpen || config.selectedPort.isNotBlank()
                 ) { vm.togglePort() }
-                ActionButton(strings.btnClearLog, colors.surface, Modifier.weight(1f)) { vm.clearLogs() }
+                ActionButton(
+                    strings.btnClearLog,
+                    colors.surface,
+                    Modifier.weight(1f),
+                    enabled = vm.logs.isNotEmpty()
+                ) { vm.clearLogs() }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(15.dp), modifier = Modifier.padding(top = 4.dp)) {
                 SmallStatusDot(vm.isPortOpen, strings.labelSerialPort)
                 SmallStatusDot(vm.isSimulating, strings.labelRule)
             }
         }
-        CardPanel(title = strings.panelOptions) {
-            OptionCheck(prefs.showRealTime, strings.optRealTime) { prefs.showRealTime = it }
-            OptionCheck(prefs.hexDisplay, strings.optHexDisplay) { prefs.hexDisplay = it }
-            OptionCheck(prefs.hexSend, strings.optHexSend) { prefs.hexSend = it }
+        CardPanel(title = strings.panelActions) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ActionButton(
+                    strings.btnSendData,
+                    colors.success,
+                    Modifier.weight(1f),
+                    enabled = vm.canSend(vm.inputText)
+                ) { vm.sendData(vm.inputText) }
+                ActionButton(
+                    strings.btnClearSend,
+                    colors.surface,
+                    Modifier.weight(1f),
+                    enabled = vm.inputText.isNotEmpty()
+                ) { vm.inputText = "" }
+            }
         }
-        CardPanel(title = strings.panelHighlight) {
-            HighlightEditor(prefs.highlight)
+        CardPanel(title = strings.panelQuickSend) {
+            QuickSendPanel(vm)
+        }
+        ExpandableCardPanel(title = strings.panelSendHistory) {
+            SendHistoryPanel(vm)
+        }
+        ExpandableCardPanel(title = strings.panelProtocolTools) {
+            ProtocolToolsPanel(vm)
+        }
+        ExpandableCardPanel(title = strings.panelOptions) {
+            OptionsGrid(vm)
+        }
+        ExpandableCardPanel(title = strings.panelHighlight) {
+            HighlightEditor(vm.prefs.highlight)
+        }
+        ExpandableCardPanel(title = strings.panelLog) {
+            LogFilterEditor(vm.prefs.logFilter)
         }
     }
 }
@@ -588,7 +689,7 @@ private fun GatewayPage(viewModel: GatewayViewModel) {
             horizontalArrangement = Arrangement.spacedBy(15.dp)
         ) {
             GatewayLogPanel(viewModel, modifier = Modifier.weight(1f))
-            Column(modifier = Modifier.width(360.dp).verticalScroll(rememberScrollState())) {
+            ScrollableSidePanel(width = 372.dp) {
                 GatewayControlPanel(viewModel)
             }
         }
@@ -602,20 +703,15 @@ private fun GatewayLogPanel(
     modifier: Modifier
 ) {
     val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
     val listState = rememberLazyListState()
+    var confirmClearLogs by remember { mutableStateOf(false) }
     val logBackground = if (colors.surface.luminance() > 0.5f) Color(0xFFF9F9F9) else Color(0xFF141414)
-    val visibleLogs = remember(
-        viewModel.logs.size,
-        viewModel.logFilter.query,
-        viewModel.logFilter.onlyMatches,
-        viewModel.logFilter.showTx,
-        viewModel.logFilter.showRx,
-        viewModel.logFilter.showInfo
-    ) {
-        viewModel.logs.filter { viewModel.logFilter.accepts(it) }
+    val visibleLogs by remember(viewModel) {
+        derivedStateOf { viewModel.logs.filter { viewModel.logFilter.accepts(it) } }
     }
 
-    LaunchedEffect(visibleLogs.size, viewModel.logFilter.autoScroll) {
+    LaunchedEffect(visibleLogs.lastOrNull()?.id, viewModel.logFilter.autoScroll) {
         if (viewModel.logFilter.autoScroll && visibleLogs.isNotEmpty()) {
             listState.animateScrollToItem(visibleLogs.size)
         }
@@ -633,24 +729,41 @@ private fun GatewayLogPanel(
                 LogListHeader(
                     totalCount = viewModel.logs.size,
                     visibleCount = visibleLogs.size,
-                    query = viewModel.logFilter.query
+                    query = viewModel.logFilter.query,
+                    onCopyLogs = {
+                        DesktopActions.copyText(LogExporter.render(visibleLogs, LogExportFormat.TEXT))
+                            .onSuccess { viewModel.reportInfo(strings.logsCopied) }
+                            .onFailure { viewModel.reportInfo(strings.operationFailed(it.message.orEmpty())) }
+                    },
+                    onExportText = { exportGatewayLogs(viewModel, visibleLogs, LogExportFormat.TEXT, strings) },
+                    onExportCsv = { exportGatewayLogs(viewModel, visibleLogs, LogExportFormat.CSV, strings) },
+                    onClearLogs = { confirmClearLogs = true }
                 )
                 Spacer(Modifier.height(6.dp))
             }
-            items(visibleLogs) { log ->
-                LogLine(
-                    text = "[${log.time}] ${if (log.type == LogType.TX) "->" else "<-"} ${log.content}",
-                    baseColor = when (log.type) {
-                        LogType.TX -> colors.primary
-                        LogType.RX -> colors.success
-                        else -> colors.onSurface.copy(0.58f)
-                    },
-                    highlight = viewModel.highlight,
-                    extraHighlight = viewModel.logFilter.query
-                )
+            if (visibleLogs.isEmpty()) {
+                item { EmptyLogState() }
+            } else {
+                items(visibleLogs, key = { it.id }) { log ->
+                    LogEntryRow(
+                        log = log,
+                        baseColor = when (log.type) {
+                            LogType.TX -> colors.primary
+                            LogType.RX -> colors.success
+                            else -> colors.onSurface.copy(0.58f)
+                        },
+                        highlight = viewModel.highlight,
+                        extraHighlight = viewModel.logFilter.query
+                    )
+                }
             }
         }
     }
+    ConfirmClearLogsDialog(
+        visible = confirmClearLogs,
+        onConfirm = { viewModel.clearLogs(); confirmClearLogs = false },
+        onDismiss = { confirmClearLogs = false }
+    )
 }
 
 @Composable
@@ -672,6 +785,7 @@ private fun GatewayControlPanel(viewModel: GatewayViewModel) {
                     color = colors.onSurface.copy(alpha = 0.68f),
                     fontSize = 12.sp
                 )
+                ConfigValidationSummary(viewModel.configIssues)
             }
         }
         CardPanel(title = strings.panelRoute) {
@@ -705,8 +819,18 @@ private fun GatewayControlPanel(viewModel: GatewayViewModel) {
             }
             OptionCheck(viewModel.hexDisplay, strings.optHexDisplay) { viewModel.hexDisplay = it }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ActionButton(strings.btnClearLog, colors.surface, Modifier.weight(1f)) { viewModel.clearLogs() }
-                ActionButton(strings.btnClearCounters, colors.surface, Modifier.weight(1f)) { viewModel.clearCounters() }
+                ActionButton(
+                    strings.btnClearLog,
+                    colors.surface,
+                    Modifier.weight(1f),
+                    enabled = viewModel.logs.isNotEmpty()
+                ) { viewModel.clearLogs() }
+                ActionButton(
+                    strings.btnClearCounters,
+                    colors.surface,
+                    Modifier.weight(1f),
+                    enabled = viewModel.endpoints.any { it.txCount > 0 || it.rxCount > 0 }
+                ) { viewModel.clearCounters() }
             }
         }
         CardPanel(title = strings.panelHighlight) {
@@ -742,7 +866,8 @@ private fun GatewayEndpointCard(
             ActionButton(
                 text = if (endpoint.isOpen) strings.btnClose else strings.btnOpen,
                 color = if (endpoint.isOpen) colors.success else colors.primary,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                enabled = endpoint.isOpen || endpoint.selectedPort.isNotBlank()
             ) { viewModel.toggleEndpoint(endpoint) }
             Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
                 SmallStatusDot(endpoint.isOpen, "${endpoint.txCount}/${endpoint.rxCount}")
@@ -824,7 +949,11 @@ private fun GatewayStatusBar(viewModel: GatewayViewModel) {
 private fun LogListHeader(
     totalCount: Int,
     visibleCount: Int,
-    query: String
+    query: String,
+    onCopyLogs: () -> Unit,
+    onExportText: () -> Unit,
+    onExportCsv: () -> Unit,
+    onClearLogs: () -> Unit
 ) {
     val colors = LocalAppColors.current
     val strings = LocalAppStrings.current
@@ -835,7 +964,6 @@ private fun LogListHeader(
             .background(colors.surface.copy(alpha = 0.72f))
             .border(1.dp, colors.border.copy(alpha = 0.34f), RoundedCornerShape(5.dp))
             .padding(horizontal = 8.dp, vertical = 5.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
@@ -854,9 +982,106 @@ private fun LogListHeader(
                 fontSize = 11.sp,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 10.dp).weight(1f, fill = false)
+                modifier = Modifier.padding(start = 10.dp).weight(1f)
+            )
+        } else {
+            Spacer(Modifier.weight(1f))
+        }
+        LogHeaderAction(Icons.Default.ContentCopy, strings.btnCopyLogs, onCopyLogs)
+        LogHeaderAction(Icons.Default.Description, strings.btnExportText, onExportText)
+        LogHeaderAction(Icons.Default.TableChart, strings.btnExportCsv, onExportCsv)
+        LogHeaderAction(Icons.Default.DeleteSweep, strings.actionClearLogs, onClearLogs)
+    }
+}
+
+@Composable
+private fun LogHeaderAction(icon: ImageVector, description: String, onClick: () -> Unit) {
+    IconButton(onClick = onClick, modifier = Modifier.size(34.dp)) {
+        Icon(
+            imageVector = icon,
+            contentDescription = description,
+            modifier = Modifier.size(17.dp),
+            tint = LocalAppColors.current.onSurface.copy(alpha = 0.58f)
+        )
+    }
+}
+
+@Composable
+private fun LogEntryRow(
+    log: LogEntry,
+    baseColor: Color,
+    highlight: KeywordHighlightConfig,
+    extraHighlight: String = ""
+) {
+    val strings = LocalAppStrings.current
+    val rowText = "[${log.time}] ${log.type.name.padEnd(4)} ${log.content}"
+    ContextMenuArea(
+        items = {
+            listOf(
+                ContextMenuItem(strings.actionCopyRow) { DesktopActions.copyText(rowText) },
+                ContextMenuItem(strings.actionCopyContent) { DesktopActions.copyText(log.content) }
             )
         }
+    ) {
+        LogLine(rowText, baseColor, highlight, extraHighlight)
+    }
+}
+
+@Composable
+private fun ConfirmClearLogsDialog(visible: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    if (!visible) return
+    val strings = LocalAppStrings.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(strings.confirmClearLogsTitle) },
+        text = { Text(strings.confirmClearLogsMessage) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(strings.btnConfirm) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(strings.btnCancel) } }
+    )
+}
+
+private fun exportSerialLogs(
+    viewModel: SerialViewModel,
+    logs: List<LogEntry>,
+    format: LogExportFormat,
+    strings: AppStrings
+) {
+    DesktopActions.exportLogs(logs, format, strings.exportLogsDialogTitle)
+        .onSuccess { file -> file?.let { viewModel.addLog(strings.logsExported(it.absolutePath), LogType.INFO) } }
+        .onFailure { viewModel.addLog(strings.operationFailed(it.message.orEmpty()), LogType.INFO) }
+}
+
+private fun exportGatewayLogs(
+    viewModel: GatewayViewModel,
+    logs: List<LogEntry>,
+    format: LogExportFormat,
+    strings: AppStrings
+) {
+    DesktopActions.exportLogs(logs, format, strings.exportLogsDialogTitle)
+        .onSuccess { file -> file?.let { viewModel.reportInfo(strings.logsExported(it.absolutePath)) } }
+        .onFailure { viewModel.reportInfo(strings.operationFailed(it.message.orEmpty())) }
+}
+
+@Composable
+private fun EmptyLogState() {
+    val colors = LocalAppColors.current
+    val strings = LocalAppStrings.current
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Icon(
+            imageVector = Icons.Default.DataObject,
+            contentDescription = null,
+            modifier = Modifier.size(28.dp),
+            tint = colors.onSurface.copy(alpha = 0.24f)
+        )
+        Text(
+            text = strings.emptyLog,
+            color = colors.onSurface.copy(alpha = 0.46f),
+            fontSize = 12.sp
+        )
     }
 }
 
@@ -1048,7 +1273,7 @@ private fun SmallStatusDot(
                 modifier = Modifier
                     .size(8.dp)
                     .clip(RoundedCornerShape(4.dp))
-                    .background(if (active) colors.success else colors.error)
+                    .background(if (active) colors.success else colors.onSurface.copy(alpha = 0.30f))
             )
         }
         Text(
