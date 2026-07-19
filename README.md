@@ -62,13 +62,41 @@ KSerial 使用 Kotlin 和 Compose Multiplatform 构建，面向嵌入式开发�
 
 需要模拟设备时，在 **设备模拟** 中加载规则配置；需要在多个串口之间转发数据时，在 **串口桥接** 中加载端点与路由配置。
 
-首次启动时，KSerial 会在用户配置目录生成可注释的 HOCON `settings.conf`，用于恢复语言、主题、置顶状态、串口参数、显示与过滤选项、快捷命令和发送历史。发送输入框、循环发送开关及间隔不会保存，串口也不会自动打开。
+### 运行目录与 `settings.conf`
 
-| 系统 | 全局配置位置 |
+首次启动时，KSerial 以 `System.getProperty("user.dir")` 作为运行根目录，创建 `conf` 文件夹，并在其中生成：
+
+- `settings.conf`：全局设置；
+- `01-simulator-minimal.conf` 至 `06-bridge-multi-route.conf`：由简到繁的设备模拟和串口桥接示例。
+
+设备模拟和串口桥接的“加载配置”窗口会优先打开该 `conf` 目录。升级旧版本时，如果新目录尚无 `settings.conf`，程序会从原用户配置目录复制旧设置。示例文件只在缺失时释放，不会覆盖用户修改。
+
+`settings.conf` 由程序生成纯 HOCON，不写入字段注释；即使手动添加注释，程序下次保存时也会移除。若程序安装在 `Program Files` 等受保护目录，请确保当前用户对运行目录具有写权限，否则无法创建或更新 `conf`。
+
+| 字段 | 说明 |
 | --- | --- |
-| Windows | `%APPDATA%\KSerial\settings.conf` |
-| macOS | `~/Library/Application Support/KSerial/settings.conf` |
-| Linux | `$XDG_CONFIG_HOME/kserial/settings.conf`，未设置时为 `~/.config/kserial/settings.conf` |
+| `schemaVersion` | 配置结构版本，请勿手动修改。 |
+| `appearance.darkTheme` | 是否使用深色主题。 |
+| `appearance.alwaysOnTop` | 窗口是否保持最前。 |
+| `appearance.language` | 界面语言：`zh`、`en` 或 `ja`。 |
+| `serial.selectedPort` | 最后选择的串口名称；只恢复选择，不自动打开。 |
+| `serial.baudRate` | 波特率。 |
+| `serial.dataBits` | 数据位，范围为 5 至 8。 |
+| `serial.stopBitsIndex` | 停止位索引：`0=1`、`1=1.5`、`2=2`。 |
+| `serial.parityIndex` | 校验位索引：`0=None`、`1=Odd`、`2=Even`、`3=Mark`、`4=Space`。 |
+| `serial.flowControlIndex` | 流控索引：`0=None`、`1=RTS/CTS`、`2=DSR/DTR`、`3=XON/XOFF`。 |
+| `preferences.showRealTime` | 日志是否显示实时时间。 |
+| `preferences.hexDisplay` | 接收内容是否以 HEX 显示。 |
+| `preferences.hexSend` | 发送输入是否按 HEX 解析。 |
+| `preferences.saveSend` / `saveReceive` | 是否保存发送、接收数据。 |
+| `preferences.quickCommandsText` | 快捷发送命令，每行一条，可使用转义字符。 |
+| `preferences.highlightEnabled` / `highlightIgnoreCase` / `highlightKeywords` | 关键词高亮开关、大小写规则和关键词列表。 |
+| `preferences.logQuery` / `logOnlyMatches` | 最后的日志搜索内容，以及是否只显示匹配项。 |
+| `preferences.logAutoScroll` | 日志是否自动滚动到底部。 |
+| `preferences.logShowTx` / `logShowRx` / `logShowInfo` | 是否显示对应类型的日志。 |
+| `sendHistory` | 发送历史，最新在前、自动去重，最多 100 条。 |
+
+发送输入框内容、循环发送开关及循环间隔不会保存，串口也不会在启动时自动打开。
 
 ## 配置驱动的设备模拟与桥接
 

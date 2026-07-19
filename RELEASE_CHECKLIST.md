@@ -16,7 +16,7 @@ Use this checklist before publishing a stable version.
 ```
 
 - Confirm unit tests cover settings, HEX parsing, checksums, framing, simulator rules, routes, filters, and history.
-- Launch the portable application once and confirm `settings.conf` is created without opening a serial port.
+- Launch the portable application once and confirm `conf/settings.conf` and all six samples are created without opening a serial port.
 - Smoke-test a real or paired virtual serial port: open, send, receive, reconnect, and close.
 
 ## Platform packages
