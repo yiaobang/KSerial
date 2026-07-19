@@ -159,11 +159,41 @@ macOS / Linux:
 ./gradlew :composeApp:packageDistributionForCurrentOS
 ```
 
+## Testing
+
+After refreshing the Gradle project, the following tasks are available in the IDE under `composeApp > Tasks > KSerial Tests`:
+
+| Task | Purpose |
+| --- | --- |
+| `coreTest` | Runs unit and Compose UI tests without opening real serial ports |
+| `terminalHardwareTest` | Uses virtual-port pair 1 to verify real bidirectional terminal traffic, escape parsing, and loop sending |
+| `simulatorHardwareTest` | Uses pairs 2 and 3 to verify ASCII delimiter framing and fixed-length HEX auto-replies |
+| `gatewayHardwareTest` | Uses all 5 pairs to verify configured routes, one-to-one, one-to-many, many-to-many, binary-transparent forwarding, and non-target isolation |
+| `allHardwareTest` | Runs terminal, device simulator, and serial gateway hardware tests sequentially |
+| `allKSerialTest` | Runs unit/UI tests first, followed by every real serial-port test |
+
+Three slower observation tasks are also available: `terminalHardwareObserve`, `simulatorHardwareObserve`, and `gatewayHardwareObserve`. They pause around each real write and print `OPEN`, `SEND`, `WRITE RESULT`, and `RECEIVED` traces to the console, making traffic easy to verify with an external serial monitor.
+
+Hardware tests use five connected virtual-port pairs by default: `COM1↔COM2`, `COM3↔COM4`, `COM5↔COM6`, `COM7↔COM8`, and `COM9↔COM10`. The first port in each pair acts as the external test peer, while KSerial opens the second. Override the topology with the `KSERIAL_PORT_PAIRS` environment variable using the format `portA:portB,portC:portD`.
+
+```powershell
+$env:KSERIAL_PORT_PAIRS = "COM11:COM12,COM13:COM14,COM15:COM16,COM17:COM18,COM19:COM20"
+.\gradlew.bat :composeApp:allKSerialTest
+```
+
+Regular `jvmTest`, `coreTest`, and CI runs deliberately skip real serial-port tests so they do not claim local ports. Generate the JVM test coverage report with:
+
+```powershell
+.\gradlew.bat :composeApp:koverHtmlReportJvm
+```
+
+Open `composeApp/build/reports/kover/htmlJvm/index.html` to view the report.
+
 ## Automated releases
 
 The application version is defined by `appVersion` in `gradle.properties`. Pushing a matching `v*` tag, such as `v1.0.0`, starts the `Build and Release` workflow. It tests and packages the application on Windows, macOS, and Linux, then creates or updates the matching GitHub Release with a `SHA256SUMS.txt` file.
 
-Regular pushes to `master` and pull requests only run JVM tests; they do not package or publish the application. A manually started release workflow validates multi-platform packaging by default and creates or updates a Release only when its `publish` option is explicitly enabled.
+Regular pushes to `master` and pull requests only run JVM unit/UI tests that do not require real serial ports; they do not package or publish the application. A manually started release workflow validates multi-platform packaging by default and creates or updates a Release only when its `publish` option is explicitly enabled.
 
 ## Technology
 

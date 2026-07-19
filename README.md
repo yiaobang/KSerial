@@ -159,11 +159,41 @@ macOS / Linux：
 ./gradlew :composeApp:packageDistributionForCurrentOS
 ```
 
+## 测试
+
+刷新 Gradle 项目后，可以在 IDE 的 `composeApp > Tasks > KSerial Tests` 分组中直接运行下列任务：
+
+| 任务 | 用途 |
+| --- | --- |
+| `coreTest` | 运行单元测试和 Compose UI 测试，不打开真实串口 |
+| `terminalHardwareTest` | 使用第 1 组虚拟串口验证串口终端的真实双向收发、转义解析和循环发送 |
+| `simulatorHardwareTest` | 使用第 2、3 组虚拟串口验证 ASCII 分隔符与 HEX 定长分帧自动回复 |
+| `gatewayHardwareTest` | 使用全部 5 组虚拟串口验证配置路由、一对一、一对多、多对多、二进制透明转发和非目标端口隔离 |
+| `allHardwareTest` | 按“终端 → 设备模拟器 → 串口桥接”的顺序运行全部真实串口测试 |
+| `allKSerialTest` | 先运行单元/UI 测试，再运行全部真实串口测试 |
+
+另有 `terminalHardwareObserve`、`simulatorHardwareObserve` 和 `gatewayHardwareObserve` 三个观察任务。它们会放慢每次真实写入，并在控制台输出 `OPEN`、`SEND`、`WRITE RESULT` 和 `RECEIVED` 轨迹，便于配合串口监控工具人工核对流量。
+
+真实串口测试默认使用 5 组已互联的虚拟串口：`COM1↔COM2`、`COM3↔COM4`、`COM5↔COM6`、`COM7↔COM8`、`COM9↔COM10`。每组前一个端口作为外部测试端，后一个端口由 KSerial 打开。若端口名称不同，可通过 `KSERIAL_PORT_PAIRS` 环境变量覆盖，格式为 `端口A:端口B,端口C:端口D`。
+
+```powershell
+$env:KSERIAL_PORT_PAIRS = "COM11:COM12,COM13:COM14,COM15:COM16,COM17:COM18,COM19:COM20"
+.\gradlew.bat :composeApp:allKSerialTest
+```
+
+普通 `jvmTest`、`coreTest` 和 CI 会主动跳过真实串口测试，避免占用本机串口。生成 JVM 测试覆盖率报告可运行：
+
+```powershell
+.\gradlew.bat :composeApp:koverHtmlReportJvm
+```
+
+报告入口为 `composeApp/build/reports/kover/htmlJvm/index.html`。
+
 ## 自动发布
 
 版本号由 `gradle.properties` 中的 `appVersion` 统一管理。推送与版本一致的 `v*` 标签（例如 `v1.0.0`）时，`Build and Release` 工作流会在 Windows、macOS 和 Linux 上执行测试与打包，随后创建或更新对应的 GitHub Release，并附带 `SHA256SUMS.txt`。
 
-普通 `master` 推送和 Pull Request 只运行 JVM 测试，不打包也不发布。在 GitHub Actions 页面手动运行发布工作流时，默认只验证多平台打包；只有显式启用 `publish` 选项才会创建或更新 Release。
+普通 `master` 推送和 Pull Request 只运行不依赖真实串口的 JVM 单元/UI 测试，不打包也不发布。在 GitHub Actions 页面手动运行发布工作流时，默认只验证多平台打包；只有显式启用 `publish` 选项才会创建或更新 Release。
 
 ## 技术栈
 
