@@ -45,6 +45,7 @@ fun main() = application {
             title = workspace.hostTitle(workspace.mainHost),
             icon = appIcon,
             undecorated = true,
+            transparent = true,
             alwaysOnTop = workspace.prefs.isAlwaysOnTop,
             resizable = true
         ) {
@@ -76,6 +77,7 @@ fun main() = application {
                 title = workspace.hostTitle(host),
                 icon = appIcon,
                 undecorated = true,
+                transparent = true,
                 alwaysOnTop = workspace.prefs.isAlwaysOnTop,
                 resizable = true
             ) {
@@ -110,13 +112,13 @@ private fun InstallWindowBehavior(
 
     DisposableEffect(window) {
         window.minimumSize = Dimension(900, 620)
-        // 窗口采用无系统边框样式，顶部 40px 自行承担标题栏拖动行为。
+        // 窗口采用无系统边框样式，顶部 48px 自行承担标题栏拖动行为。
         val adapter = object : MouseAdapter() {
             private var dragStart = Point()
             private var dragging = false
 
             override fun mousePressed(e: MouseEvent) {
-                dragging = e.y <= 40
+                dragging = e.y <= 48
                 if (dragging) dragStart = e.point
             }
 

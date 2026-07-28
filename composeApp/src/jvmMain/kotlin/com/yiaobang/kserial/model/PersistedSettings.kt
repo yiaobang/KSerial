@@ -4,7 +4,7 @@ import com.yiaobang.kserial.i18n.Language
 
 /** settings.conf 的稳定磁盘模型；与 Compose 可变状态分离，便于版本迁移和测试。 */
 data class PersistedSettings(
-    val schemaVersion: Int = 1,
+    val schemaVersion: Int = 2,
     val appearance: PersistedAppearance = PersistedAppearance(),
     val serial: PersistedSerialSettings = PersistedSerialSettings(),
     val preferences: PersistedPreferences = PersistedPreferences(),
@@ -34,6 +34,15 @@ data class PersistedPreferences(
     val showRealTime: Boolean = true,
     val hexDisplay: Boolean = false,
     val hexSend: Boolean = false,
+    val receiveDisplayMode: String = ReceiveDisplayMode.TIME_WINDOW.name,
+    val receiveWindowMs: String = "25",
+    val receiveDelimiter: String = "\\r\\n",
+    val receiveFrameSize: String = "8",
+    val sendLineEnding: String = SendLineEnding.NONE.name,
+    val enterToSend: Boolean = false,
+    val clearAfterSend: Boolean = false,
+    val autoReconnect: Boolean = false,
+    val reconnectIntervalMs: String = "2000",
     val saveSend: Boolean = false,
     val saveReceive: Boolean = false,
     val quickCommandsText: String = "AT\\r\\n\nAT+VERSION\\r\\n",
@@ -59,6 +68,17 @@ fun AppPreferences.applyPersisted(
     showRealTime = settings.showRealTime
     hexDisplay = settings.hexDisplay
     hexSend = settings.hexSend
+    receiveDisplayMode = ReceiveDisplayMode.entries.firstOrNull { it.name == settings.receiveDisplayMode }
+        ?: ReceiveDisplayMode.TIME_WINDOW
+    receiveWindowMsText = settings.receiveWindowMs
+    receiveDelimiterText = settings.receiveDelimiter
+    receiveFrameSizeText = settings.receiveFrameSize
+    sendLineEnding = SendLineEnding.entries.firstOrNull { it.name == settings.sendLineEnding }
+        ?: SendLineEnding.NONE
+    enterToSend = settings.enterToSend
+    clearAfterSend = settings.clearAfterSend
+    autoReconnect = settings.autoReconnect
+    reconnectIntervalText = settings.reconnectIntervalMs
     // 循环发送属于有副作用的临时状态，每次启动必须回到安全默认值。
     loopSendEnabled = false
     loopIntervalText = "1000"
@@ -96,6 +116,15 @@ fun AppPreferences.toPersistedPreferences(): PersistedPreferences = PersistedPre
     showRealTime = showRealTime,
     hexDisplay = hexDisplay,
     hexSend = hexSend,
+    receiveDisplayMode = receiveDisplayMode.name,
+    receiveWindowMs = receiveWindowMsText,
+    receiveDelimiter = receiveDelimiterText,
+    receiveFrameSize = receiveFrameSizeText,
+    sendLineEnding = sendLineEnding.name,
+    enterToSend = enterToSend,
+    clearAfterSend = clearAfterSend,
+    autoReconnect = autoReconnect,
+    reconnectIntervalMs = reconnectIntervalText,
     saveSend = saveSend,
     saveReceive = saveReceive,
     quickCommandsText = quickCommandsText,

@@ -23,12 +23,16 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yiaobang.kserial.SerialViewModel
 import com.yiaobang.kserial.i18n.LocalAppStrings
 import com.yiaobang.kserial.model.KeywordHighlightConfig
 import com.yiaobang.kserial.model.LogFilterConfig
+import com.yiaobang.kserial.model.ReceiveDisplayMode
+import com.yiaobang.kserial.model.SendLineEnding
+import com.yiaobang.kserial.model.SerialConnectionState
 import com.yiaobang.kserial.theme.LocalAppColors
 
 /**
@@ -41,13 +45,13 @@ fun ControlPanel(vm: SerialViewModel) {
     val prefs = vm.prefs
     var advancedConnectionExpanded by remember { mutableStateOf(false) }
     Column(
-        modifier = Modifier.width(320.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(0.dp)
     ) {
         // 连接参数配置卡片
         CardPanel(title = s.panelConnection) {
-            ConnectionStatus(vm)
-            ParameterRow(s.labelSerialPort, config.selectedPort.ifBlank { s.notSelected }, vm.availablePorts) { config.selectedPort = it }
+            ConnectionFeedback(vm)
+            PortParameterRow(vm)
             ParameterRow(s.labelBaudRate, config.baudRate.toString(), com.yiaobang.kserial.model.SerialPortConfig.BAUD_RATES.map { it.toString() }) { config.baudRate = it.toInt() }
             ExpandableSectionToggle(
                 title = s.labelAdvancedSerialParameters,
@@ -69,6 +73,14 @@ fun ControlPanel(vm: SerialViewModel) {
 
         ExpandableCardPanel(title = s.panelOptions) {
             OptionsGrid(vm = vm)
+        }
+
+        ExpandableCardPanel(title = s.panelReceiveDisplay) {
+            ReceiveDisplayPanel(vm)
+        }
+
+        ExpandableCardPanel(title = s.panelLineControl) {
+            LineControlPanel(vm)
         }
 
         ExpandableCardPanel(title = s.panelQuickSend) {
@@ -152,21 +164,40 @@ fun QuickSendPanel(vm: SerialViewModel) {
 fun CardPanel(title: String, content: @Composable ColumnScope.() -> Unit) {
     val colors = LocalAppColors.current
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.surface, RoundedCornerShape(7.dp))
-            .border(1.dp, colors.border.copy(alpha = 0.74f), RoundedCornerShape(7.dp))
-            .padding(horizontal = 10.dp, vertical = 9.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+        modifier = Modifier.fillMaxWidth()
     ) {
-        Text(
-            title,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.onSurface.copy(0.72f),
-            letterSpacing = 0.sp
-        )
-        content()
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                title,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onSurface.copy(0.58f),
+                letterSpacing = 0.35.sp
+            )
+            content()
+        }
+        HorizontalDivider(color = colors.border.copy(alpha = 0.68f))
+    }
+}
+
+@Composable
+private fun PortParameterRow(vm: SerialViewModel) {
+    val strings = LocalAppStrings.current
+    val details = vm.availablePortDetails
+    val selectedLabel = details.firstOrNull { it.systemName == vm.config.selectedPort }?.displayName
+        ?: vm.config.selectedPort.ifBlank { strings.notSelected }
+    val labels = if (details.isNotEmpty()) details.map { it.displayName } else vm.availablePorts
+    ParameterRow(
+        label = strings.labelSerialPort,
+        value = selectedLabel,
+        options = labels,
+        menuWidth = 292.dp,
+        optionMaxLines = 2
+    ) { selected ->
+        vm.config.selectedPort = details.firstOrNull { it.displayName == selected }?.systemName ?: selected
     }
 }
 
@@ -180,40 +211,38 @@ fun ExpandableCardPanel(
     val colors = LocalAppColors.current
     val strings = LocalAppStrings.current
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(colors.surface, RoundedCornerShape(7.dp))
-            .border(1.dp, colors.border.copy(alpha = 0.74f), RoundedCornerShape(7.dp))
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(40.dp)
+                .height(45.dp)
                 .clickable { expanded = !expanded }
-                .padding(horizontal = 10.dp),
+                .padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = title,
                 modifier = Modifier.weight(1f),
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.onSurface.copy(alpha = 0.72f)
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Medium,
+                color = colors.onSurface.copy(alpha = 0.76f)
             )
             Icon(
                 imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                 contentDescription = if (expanded) strings.actionCollapse else strings.actionExpand,
                 modifier = Modifier.size(18.dp),
-                tint = colors.onSurface.copy(alpha = 0.52f)
+                tint = if (expanded) colors.primary else colors.onSurface.copy(alpha = 0.46f)
             )
         }
         if (expanded) {
             Column(
-                modifier = Modifier.padding(start = 10.dp, end = 10.dp, bottom = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
                 content = content
             )
         }
+        HorizontalDivider(color = colors.border.copy(alpha = 0.68f))
     }
 }
 
@@ -228,8 +257,8 @@ private fun ExpandableSectionToggle(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(36.dp)
-            .clip(RoundedCornerShape(5.dp))
+            .height(38.dp)
+            .clip(RoundedCornerShape(7.dp))
             .background(colors.background.copy(alpha = 0.72f))
             .clickable(onClick = onToggle)
             .padding(horizontal = 9.dp),
@@ -259,34 +288,53 @@ private fun ParameterRow(
     label: String,
     value: String,
     options: List<String>,
+    menuWidth: Dp = 176.dp,
+    optionMaxLines: Int = 1,
     onSelect: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
     val colors = LocalAppColors.current
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.width(110.dp), fontSize = 13.sp, color = colors.onSurface)
+        Text(label, modifier = Modifier.width(108.dp), fontSize = 12.sp, color = colors.onSurface.copy(alpha = 0.78f))
         Box(modifier = Modifier.weight(1f)) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(30.dp)
-                    .background(colors.background, RoundedCornerShape(4.dp))
-                    .border(1.dp, colors.border, RoundedCornerShape(4.dp))
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(7.dp))
+                    .background(colors.surfaceMuted)
+                    .border(1.dp, colors.border.copy(alpha = 0.82f), RoundedCornerShape(7.dp))
                     .clickable(enabled = options.isNotEmpty()) { expanded = true }
-                    .padding(horizontal = 8.dp),
+                    .padding(horizontal = 10.dp),
                 contentAlignment = Alignment.CenterStart
             ) {
-                Text(value, fontSize = 13.sp, color = colors.onSurface)
-                Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.align(Alignment.CenterEnd).size(16.dp), tint = colors.primary)
+                Text(
+                    value,
+                    modifier = Modifier.padding(end = 20.dp),
+                    fontSize = 12.sp,
+                    color = colors.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.align(Alignment.CenterEnd).size(17.dp), tint = colors.onSurface.copy(alpha = 0.54f))
             }
             DropdownMenu(
                 expanded = expanded,
                 onDismissRequest = { expanded = false },
-                modifier = Modifier.width(166.dp).background(colors.surface).border(1.dp, colors.border)
+                modifier = Modifier.width(menuWidth).background(colors.surface).border(1.dp, colors.border.copy(alpha = 0.72f))
             ) {
                 options.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(option, fontSize = 13.sp, color = colors.onSurface) },
+                        text = {
+                            Text(
+                                option,
+                                fontSize = 12.sp,
+                                lineHeight = 16.sp,
+                                color = colors.onSurface,
+                                maxLines = optionMaxLines,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
                         onClick = { onSelect(option); expanded = false }
                     )
                 }
@@ -305,10 +353,10 @@ private fun ActionButtonGrid(vm: SerialViewModel, onClearSend: () -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton(
-                text = if (vm.isPortOpen) s.btnClosePort else s.btnOpenPort,
+                text = if (vm.isConnectionActive) s.btnClosePort else s.btnOpenPort,
                 color = colors.primary,
                 modifier = Modifier.weight(1f),
-                enabled = vm.isPortOpen || vm.config.selectedPort.isNotBlank()
+                enabled = vm.isConnectionActive || vm.config.selectedPort.isNotBlank()
             ) { vm.togglePort() }
             ActionButton(s.btnClearReceive, colors.surface, Modifier.weight(1f), enabled = vm.logs.isNotEmpty()) { vm.clearLogs() }
         }
@@ -318,7 +366,7 @@ private fun ActionButtonGrid(vm: SerialViewModel, onClearSend: () -> Unit) {
                 colors.success,
                 Modifier.weight(1f),
                 enabled = vm.canSend(vm.inputText)
-            ) { vm.sendData(vm.inputText) }
+            ) { vm.sendCurrentInput() }
             ActionButton(
                 s.btnClearSend,
                 colors.surface,
@@ -353,6 +401,26 @@ fun OptionsGrid(vm: SerialViewModel) {
         Row {
             OptionItem(prefs.saveSend, s.optSaveSend, Modifier.weight(1f)) { prefs.saveSend = it }
             OptionItem(prefs.saveReceive, s.optSaveReceive, Modifier.weight(1f)) { prefs.saveReceive = it }
+        }
+        Row {
+            OptionItem(prefs.enterToSend, s.optEnterToSend, Modifier.weight(1f)) { prefs.enterToSend = it }
+            OptionItem(prefs.clearAfterSend, s.optClearAfterSend, Modifier.weight(1f)) { prefs.clearAfterSend = it }
+        }
+        OptionItem(prefs.autoReconnect, s.optAutoReconnect, Modifier.fillMaxWidth()) { vm.setAutoReconnect(it) }
+        ParameterRow(
+            label = s.labelLineEnding,
+            value = lineEndingLabel(prefs.sendLineEnding, s),
+            options = SendLineEnding.entries.map { lineEndingLabel(it, s) }
+        ) { selected ->
+            prefs.sendLineEnding = SendLineEnding.entries.first { lineEndingLabel(it, s) == selected }
+        }
+        if (prefs.autoReconnect) {
+            CompactNumericRow(
+                label = s.labelReconnectInterval,
+                value = prefs.reconnectIntervalText,
+                onValueChange = { prefs.reconnectIntervalText = it },
+                suffix = s.labelMs
+            )
         }
         // 发送周期输入行
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 8.dp)) {
@@ -389,6 +457,133 @@ fun OptionsGrid(vm: SerialViewModel) {
     }
 }
 
+@Composable
+private fun ReceiveDisplayPanel(vm: SerialViewModel) {
+    val strings = LocalAppStrings.current
+    val prefs = vm.prefs
+    ParameterRow(
+        label = strings.labelReceiveMode,
+        value = receiveModeLabel(prefs.receiveDisplayMode, strings),
+        options = ReceiveDisplayMode.entries.map { receiveModeLabel(it, strings) }
+    ) { selected ->
+        prefs.receiveDisplayMode = ReceiveDisplayMode.entries.first { receiveModeLabel(it, strings) == selected }
+    }
+    when (prefs.receiveDisplayMode) {
+        ReceiveDisplayMode.TIME_WINDOW -> CompactNumericRow(
+            strings.labelReceiveWindow,
+            prefs.receiveWindowMsText,
+            { prefs.receiveWindowMsText = it },
+            strings.labelMs
+        )
+        ReceiveDisplayMode.DELIMITER -> CompactTextRow(
+            strings.labelReceiveDelimiter,
+            prefs.receiveDelimiterText,
+            { prefs.receiveDelimiterText = it }
+        )
+        ReceiveDisplayMode.FIXED_LENGTH -> CompactNumericRow(
+            strings.labelReceiveFrameSize,
+            prefs.receiveFrameSizeText,
+            { prefs.receiveFrameSizeText = it },
+            "B"
+        )
+        ReceiveDisplayMode.RAW_CHUNKS -> Unit
+    }
+}
+
+@Composable
+private fun LineControlPanel(vm: SerialViewModel) {
+    val strings = LocalAppStrings.current
+    val colors = LocalAppColors.current
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        ActionButton(
+            strings.labelDtr,
+            if (vm.dtrEnabled) colors.success else colors.surface,
+            Modifier.weight(1f),
+            enabled = vm.isPortOpen && vm.config.flowControlIndex != 2
+        ) { vm.setDtr(!vm.dtrEnabled) }
+        ActionButton(
+            strings.labelRts,
+            if (vm.rtsEnabled) colors.success else colors.surface,
+            Modifier.weight(1f),
+            enabled = vm.isPortOpen && vm.config.flowControlIndex != 1
+        ) { vm.setRts(!vm.rtsEnabled) }
+        ActionButton(
+            strings.labelBreak,
+            if (vm.breakEnabled) colors.error else colors.surface,
+            Modifier.weight(1f),
+            enabled = vm.isPortOpen
+        ) { vm.setBreak(!vm.breakEnabled) }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        SignalIndicator("CTS", vm.lineSignals.cts, Modifier.weight(1f))
+        SignalIndicator("DSR", vm.lineSignals.dsr, Modifier.weight(1f))
+        SignalIndicator("DCD", vm.lineSignals.dcd, Modifier.weight(1f))
+        SignalIndicator("RI", vm.lineSignals.ri, Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun SignalIndicator(label: String, active: Boolean, modifier: Modifier = Modifier) {
+    val colors = LocalAppColors.current
+    Row(
+        modifier = modifier
+            .heightIn(min = 32.dp)
+            .background(colors.background, RoundedCornerShape(4.dp))
+            .padding(horizontal = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Box(
+            Modifier
+                .size(7.dp)
+                .clip(CircleShape)
+                .background(if (active) colors.success else colors.onSurface.copy(alpha = 0.28f))
+        )
+        Text(label, fontSize = 10.sp, color = colors.onSurface.copy(alpha = 0.72f))
+    }
+}
+
+@Composable
+private fun CompactNumericRow(label: String, value: String, onValueChange: (String) -> Unit, suffix: String) {
+    CompactTextRow(label, value, { next -> if (next.all(Char::isDigit)) onValueChange(next) }, suffix)
+}
+
+@Composable
+private fun CompactTextRow(label: String, value: String, onValueChange: (String) -> Unit, suffix: String = "") {
+    val colors = LocalAppColors.current
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, modifier = Modifier.width(110.dp), fontSize = 12.sp, color = colors.onSurface)
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            modifier = Modifier
+                .weight(1f)
+                .heightIn(min = 36.dp)
+                .background(colors.background, RoundedCornerShape(4.dp))
+                .border(1.dp, colors.border, RoundedCornerShape(4.dp))
+                .padding(horizontal = 8.dp, vertical = 8.dp),
+            textStyle = TextStyle(fontSize = 12.sp, color = colors.onSurface),
+            cursorBrush = SolidColor(colors.primary)
+        )
+        if (suffix.isNotEmpty()) Text(suffix, fontSize = 11.sp, color = colors.onSurface.copy(alpha = 0.55f))
+    }
+}
+
+private fun receiveModeLabel(mode: ReceiveDisplayMode, strings: com.yiaobang.kserial.i18n.AppStrings): String = when (mode) {
+    ReceiveDisplayMode.TIME_WINDOW -> strings.receiveModeTimeWindow
+    ReceiveDisplayMode.RAW_CHUNKS -> strings.receiveModeRawChunks
+    ReceiveDisplayMode.DELIMITER -> strings.receiveModeDelimiter
+    ReceiveDisplayMode.FIXED_LENGTH -> strings.receiveModeFixedLength
+}
+
+private fun lineEndingLabel(ending: SendLineEnding, strings: com.yiaobang.kserial.i18n.AppStrings): String = when (ending) {
+    SendLineEnding.NONE -> strings.lineEndingNone
+    SendLineEnding.LF -> "LF (\\n)"
+    SendLineEnding.CR -> "CR (\\r)"
+    SendLineEnding.CRLF -> "CRLF (\\r\\n)"
+}
+
 /**
  * 通用操作按钮
  */
@@ -408,10 +603,10 @@ fun ActionButton(
         modifier = modifier.height(40.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = color,
-            disabledContainerColor = colors.background.copy(alpha = 0.64f),
+            disabledContainerColor = colors.surfaceMuted,
             disabledContentColor = colors.onSurface.copy(alpha = 0.34f)
         ),
-        shape = RoundedCornerShape(6.dp),
+        shape = RoundedCornerShape(8.dp),
         contentPadding = PaddingValues(0.dp),
         border = if (!isMainColor) BorderStroke(1.dp, colors.border) else null
     ) {
@@ -437,7 +632,7 @@ private fun QuickCommandButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier.height(36.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = colors.background),
+        colors = ButtonDefaults.buttonColors(containerColor = colors.surfaceMuted),
         shape = RoundedCornerShape(5.dp),
         contentPadding = PaddingValues(horizontal = 7.dp),
         border = BorderStroke(1.dp, colors.border.copy(alpha = 0.72f))
@@ -472,7 +667,7 @@ fun HighlightEditor(highlight: KeywordHighlightConfig) {
             modifier = Modifier
                 .fillMaxWidth()
                 .height(54.dp)
-                .background(colors.background.copy(alpha = 0.82f), RoundedCornerShape(5.dp))
+                .background(colors.surfaceMuted, RoundedCornerShape(5.dp))
                 .border(1.dp, colors.border.copy(alpha = 0.72f), RoundedCornerShape(5.dp))
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             contentAlignment = Alignment.TopStart
@@ -506,10 +701,10 @@ fun LogFilterEditor(filter: LogFilterConfig) {
     val strings = LocalAppStrings.current
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(30.dp)
-                .background(colors.background.copy(alpha = 0.82f), RoundedCornerShape(5.dp))
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 38.dp)
+                .background(colors.surfaceMuted, RoundedCornerShape(5.dp))
                 .border(1.dp, colors.border.copy(alpha = 0.72f), RoundedCornerShape(5.dp))
                 .padding(horizontal = 8.dp),
             contentAlignment = Alignment.CenterStart
@@ -563,66 +758,66 @@ private fun OptionItem(
 }
 
 @Composable
-private fun ConnectionStatus(vm: SerialViewModel) {
+private fun ConnectionFeedback(vm: SerialViewModel) {
+    if (vm.connectionState == SerialConnectionState.CONNECTED ||
+        vm.connectionState == SerialConnectionState.DISCONNECTED
+    ) return
+
     val colors = LocalAppColors.current
     val strings = LocalAppStrings.current
+    val stateColor = when (vm.connectionState) {
+        SerialConnectionState.ERROR -> colors.error
+        SerialConnectionState.CONNECTING, SerialConnectionState.RECONNECTING -> colors.primary
+        SerialConnectionState.CONNECTED -> colors.success
+        SerialConnectionState.DISCONNECTED -> colors.onSurface.copy(alpha = 0.30f)
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .background(
-                if (vm.isPortOpen) colors.success.copy(alpha = 0.10f) else colors.background,
-                RoundedCornerShape(6.dp)
+                stateColor.copy(alpha = 0.08f),
+                RoundedCornerShape(8.dp)
             )
-            .border(
-                1.dp,
-                if (vm.isPortOpen) colors.success.copy(alpha = 0.36f) else colors.border.copy(alpha = 0.58f),
-                RoundedCornerShape(6.dp)
-            )
-            .padding(horizontal = 10.dp, vertical = 9.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Box(
             modifier = Modifier
-                .size(8.dp)
+                .size(28.dp)
                 .clip(CircleShape)
-                .background(if (vm.isPortOpen) colors.success else colors.onSurface.copy(alpha = 0.30f))
-        )
+                .background(stateColor.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(stateColor)
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                if (vm.isPortOpen) strings.statusConnected else strings.statusDisconnected,
+                when (vm.connectionState) {
+                    SerialConnectionState.CONNECTED -> strings.statusConnected
+                    SerialConnectionState.CONNECTING -> strings.statusConnecting
+                    SerialConnectionState.RECONNECTING -> strings.statusReconnecting
+                    SerialConnectionState.ERROR -> strings.statusError
+                    SerialConnectionState.DISCONNECTED -> strings.statusDisconnected
+                },
                 color = colors.onSurface,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold
             )
-            Text(
-                vm.config.selectedPort.ifBlank { strings.notSelected },
-                color = colors.onSurface.copy(alpha = 0.52f),
-                fontSize = 11.sp
-            )
-            if (vm.isPortOpen) {
-                val parityCode = parityFrameCode(vm.config.parityIndex)
-                val frameFormat = "${vm.config.dataBits}$parityCode${strings.stopBitsOptions.getOrElse(vm.config.stopBitsIndex) { "1" }}"
+            if (vm.connectionDetail.isNotBlank()) {
                 Text(
-                    text = strings.connectionSummary(
-                        baudRate = vm.config.baudRate,
-                        frameFormat = frameFormat,
-                        flowControl = strings.flowControlOptions.getOrElse(vm.config.flowControlIndex) {
-                            strings.flowControlOptions.first()
-                        }
-                    ),
-                    color = colors.onSurface.copy(alpha = 0.52f),
-                    fontSize = 10.sp
+                    text = vm.connectionDetail,
+                    color = if (vm.connectionState == SerialConnectionState.ERROR) colors.error else colors.onSurface.copy(alpha = 0.52f),
+                    fontSize = 10.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }
     }
-}
-
-private fun parityFrameCode(index: Int): String = when (index) {
-    1 -> "O"
-    2 -> "E"
-    3 -> "M"
-    4 -> "S"
-    else -> "N"
 }

@@ -10,6 +10,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.typesafe.config.Config
 import com.yiaobang.kserial.i18n.Language
+import com.yiaobang.kserial.i18n.RuntimeMessages
 import com.yiaobang.kserial.model.ConfigIssue
 import com.yiaobang.kserial.model.ConfigIssueSeverity
 import com.yiaobang.kserial.model.ConfigValidator
@@ -20,14 +21,21 @@ import com.yiaobang.kserial.model.LogType
 import com.yiaobang.kserial.serial.SerialComm
 import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
+import com.yiaobang.kserial.serial.SerialTransportEvent
+import com.yiaobang.kserial.serial.SerialTransport
 import com.yiaobang.kserial.utils.toHexString
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 /** 未提供显式 routes 时使用的动态桥接拓扑。 */
 enum class GatewayMode(val label: String) {
@@ -40,9 +48,9 @@ enum class GatewayMode(val label: String) {
 class GatewayEndpoint(
     val index: Int,
     val id: String,
-    val name: String
+    val name: String,
+    val serialComm: SerialTransport = SerialComm()
 ) {
-    val serialComm = SerialComm()
     var selectedPort by mutableStateOf("")
     var baudRate by mutableIntStateOf(9600)
     var dataBits by mutableIntStateOf(8)
@@ -54,6 +62,16 @@ class GatewayEndpoint(
     var rxCount by mutableLongStateOf(0L)
     val leaseOwner = "串口桥接:$name:${UUID.randomUUID()}"
     var leasedPort: String? = null
+    internal val receivedTotal = AtomicLong()
+    internal val droppedBytes = AtomicLong()
+    internal var rxBaseline = 0L
+    internal val receiveQueue = Channel<ByteArray>(
+        capacity = 512,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        onUndeliveredElement = { droppedBytes.addAndGet(it.size.toLong()) }
+    )
+    internal var receiveJob: Job? = null
+    @Volatile internal var closingIntentionally = false
 }
 
 /** 配置文件中的有向路由；一个来源集合可以映射到多个目标。 */
@@ -97,7 +115,7 @@ class GatewayViewModel : ViewModel() {
                     }
                     .forEach { endpoint ->
                         val port = endpoint.leasedPort ?: return@forEach
-                        closeEndpoint(endpoint, "${endpoint.name}: 串口 $port 已断开")
+                        closeEndpoint(endpoint, RuntimeMessages.portDisconnected(language, port))
                     }
             }
         }
@@ -113,7 +131,12 @@ class GatewayViewModel : ViewModel() {
             addLog("$prefix: ${issue.message}", LogType.INFO)
         }
         loadedConfigName = file.name
-        if (!validation.isValid) return
+        if (!validation.isValid) {
+            // 配置是桥接运行的唯一来源；无效文件不能继续暴露上一份配置的“运行”入口。
+            replaceEndpoints(emptyList())
+            routes.clear()
+            return
+        }
         runCatching {
             val config = validation.config ?: error("missing gateway configuration")
             val endpointConfigs = config.getConfigList("endpoints")
@@ -121,7 +144,8 @@ class GatewayViewModel : ViewModel() {
                 GatewayEndpoint(
                     index = index,
                     id = endpointConfig.optionalString("id") ?: "endpoint$index",
-                    name = endpointConfig.optionalString("name") ?: endpointConfig.optionalString("id") ?: "端点${index + 1}"
+                    name = endpointConfig.optionalString("name") ?: endpointConfig.optionalString("id")
+                    ?: RuntimeMessages.endpointDefaultName(language, index + 1)
                 ).apply {
                     selectedPort = endpointConfig.optionalString("port") ?: ""
                     baudRate = endpointConfig.optionalInt("baudRate") ?: 9600
@@ -152,33 +176,27 @@ class GatewayViewModel : ViewModel() {
             routes.addAll(loadedRoutes)
             sourceIndex = 0
             targetIndex = if (endpoints.size > 1) 1 else 0
-            addLog("已加载桥接配置: ${file.name}", LogType.INFO)
-
-            endpointConfigs.forEachIndexed { index, endpointConfig ->
-                if (endpointConfig.optionalBoolean("autoOpen") == true) {
-                    endpoints.getOrNull(index)?.let { openEndpoint(it) }
-                }
-            }
+            addLog(RuntimeMessages.gatewayLoaded(language, file.name), LogType.INFO)
         }.onFailure {
-            addLog("桥接配置加载失败: ${it.message ?: "unknown error"}", LogType.INFO)
+            addLog(RuntimeMessages.gatewayLoadFailed(language, it.message ?: "unknown error"), LogType.INFO)
         }
     }
 
     fun openEndpoint(endpoint: GatewayEndpoint) {
         val port = endpoint.selectedPort
         if (port.isBlank()) {
-            addLog("${endpoint.name}: 未选择串口", LogType.INFO)
+            addLog(RuntimeMessages.endpointNoPort(language, endpoint.name), LogType.INFO)
             return
         }
         val duplicatedInConfig = endpoints.any { it !== endpoint && it.selectedPort == port }
         if (duplicatedInConfig) {
-            addLog("${endpoint.name}: $port 在网关配置中重复", LogType.INFO)
+            addLog(RuntimeMessages.endpointDuplicate(language, endpoint.name, port), LogType.INFO)
             return
         }
         // 租约先于底层 openPort 获取，阻止其他页面并发打开同一串口。
         if (!SerialPortLeaseRegistry.acquire(port, endpoint.leaseOwner)) {
-            val owner = SerialPortLeaseRegistry.ownerOf(port) ?: "其他页面"
-            addLog("${endpoint.name}: $port 已被 $owner 占用", LogType.INFO)
+            val owner = RuntimeMessages.otherPage(language)
+            addLog(RuntimeMessages.portOccupied(language, port, owner), LogType.INFO)
             return
         }
 
@@ -197,19 +215,32 @@ class GatewayViewModel : ViewModel() {
             SerialPortLeaseRegistry.release(port, endpoint.leaseOwner)
             endpoint.leasedPort = null
         }
-        addLog(if (success) "${endpoint.name}: $port 已打开" else "${endpoint.name}: $port 打开失败", LogType.INFO)
+        addLog(RuntimeMessages.endpointOpened(language, endpoint.name, port, success), LogType.INFO)
     }
 
-    fun closeEndpoint(endpoint: GatewayEndpoint, message: String = "${endpoint.name}: 已关闭") {
-        endpoint.serialComm.closePort()
+    fun closeEndpoint(endpoint: GatewayEndpoint, message: String? = null) {
+        endpoint.closingIntentionally = true
+        try {
+            endpoint.serialComm.closePort()
+        } finally {
+            endpoint.closingIntentionally = false
+        }
         endpoint.leasedPort?.let { SerialPortLeaseRegistry.release(it, endpoint.leaseOwner) }
         endpoint.leasedPort = null
         endpoint.isOpen = false
-        addLog(message, LogType.INFO)
+        addLog(message ?: RuntimeMessages.endpointClosed(language, endpoint.name), LogType.INFO)
     }
 
     fun toggleEndpoint(endpoint: GatewayEndpoint) {
         if (endpoint.isOpen) closeEndpoint(endpoint) else openEndpoint(endpoint)
+    }
+
+    fun openAllEndpoints() {
+        endpoints.filterNot { it.isOpen }.forEach(::openEndpoint)
+    }
+
+    fun closeAllEndpoints() {
+        endpoints.filter { it.isOpen }.forEach { closeEndpoint(it) }
     }
 
     fun clearLogs() {
@@ -220,6 +251,7 @@ class GatewayViewModel : ViewModel() {
         endpoints.forEach {
             it.txCount = 0
             it.rxCount = 0
+            it.rxBaseline = it.receivedTotal.get()
         }
     }
 
@@ -230,33 +262,58 @@ class GatewayViewModel : ViewModel() {
     private fun replaceEndpoints(newEndpoints: List<GatewayEndpoint>) {
         // 旧端点先解除监听和租约，随后才给新端点注册数据回调。
         endpoints.forEach {
+            it.receiveJob?.cancel()
             it.serialComm.closePort()
             it.serialComm.clearDataListeners()
+            it.serialComm.clearTransportListeners()
+            it.receiveQueue.close()
             it.leasedPort?.let { port -> SerialPortLeaseRegistry.release(port, it.leaseOwner) }
             it.leasedPort = null
         }
         endpoints.clear()
         endpoints.addAll(newEndpoints)
         endpoints.forEach { endpoint ->
-            endpoint.serialComm.addDataListener { data -> onEndpointData(endpoint, data) }
+            endpoint.serialComm.addDataListener { data ->
+                endpoint.receivedTotal.addAndGet(data.size.toLong())
+                endpoint.receiveQueue.trySend(data)
+            }
+            endpoint.serialComm.addTransportListener { event ->
+                viewModelScope.launch {
+                    if (!endpoint.closingIntentionally && endpoint.isOpen) {
+                        when (event) {
+                            SerialTransportEvent.Disconnected -> closeEndpoint(
+                                endpoint,
+                                RuntimeMessages.portDisconnected(language, endpoint.selectedPort)
+                            )
+                            is SerialTransportEvent.Error -> addLog(RuntimeMessages.lineEvent(language, event.detail), LogType.INFO)
+                        }
+                    }
+                }
+            }
+            endpoint.receiveJob = viewModelScope.launch {
+                while (isActive) {
+                    val data = endpoint.receiveQueue.receiveCatching().getOrNull() ?: break
+                    onEndpointData(endpoint, data)
+                }
+            }
         }
     }
 
-    private fun onEndpointData(source: GatewayEndpoint, data: ByteArray) {
-        // 串口回调来自本地线程；Compose 状态与路由决策统一切回 Main 更新。
-        viewModelScope.launch(Dispatchers.Main) {
-            source.rxCount += data.size
-            addLog("${source.name} RX ${formatData(data)}", LogType.RX)
+    internal suspend fun onEndpointData(source: GatewayEndpoint, data: ByteArray) {
+        // 每个来源端点只有一个消费协程，保证该来源的转发顺序稳定。
+        source.rxCount = (source.receivedTotal.get() - source.rxBaseline).coerceAtLeast(0L)
+        val dropped = source.droppedBytes.getAndSet(0L)
+        if (dropped > 0) addLog(RuntimeMessages.gatewayDropped(language, source.name, dropped), LogType.INFO)
 
-            val targets = resolveTargets(source).filter { it.isOpen }
-            targets.forEach { target ->
-                val written = withContext(Dispatchers.IO) { target.serialComm.write(data) }
-                if (written > 0) {
-                    target.txCount += written
-                    addLog("${source.name} -> ${target.name} $written bytes", LogType.TX)
-                } else {
-                    closeEndpoint(target, "${source.name} -> ${target.name} 转发失败，连接已关闭")
-                }
+        val targets = resolveTargets(source).filter { it.isOpen }
+        targets.forEach { target ->
+            val written = withContext(Dispatchers.IO) { target.serialComm.write(data) }
+            if (written > 0) {
+                target.txCount += written
+                val sentData = data.copyOf(written.coerceAtMost(data.size))
+                addLog(RuntimeMessages.forwarded(language, source.name, target.name, formatData(sentData)), LogType.TX)
+            } else {
+                closeEndpoint(target, RuntimeMessages.forwardingFailed(language, source.name, target.name))
             }
         }
     }
@@ -299,20 +356,19 @@ class GatewayViewModel : ViewModel() {
 
     private fun applyHighlightConfig(config: Config) {
         val keywords = config.optionalStringList("keywords")
-        if (keywords.isNotEmpty()) {
-            highlight.setKeywords(keywords)
-            highlight.enabled = config.optionalBoolean("enabled") ?: true
-        } else {
-            config.optionalBoolean("enabled")?.let { highlight.enabled = it }
-        }
-        config.optionalBoolean("ignoreCase")?.let { highlight.ignoreCase = it }
+        highlight.setKeywords(keywords)
+        highlight.enabled = config.optionalBoolean("enabled") ?: keywords.isNotEmpty()
+        highlight.ignoreCase = config.optionalBoolean("ignoreCase") ?: true
     }
 
     public override fun onCleared() {
         // 桥接可能同时占用多个端口，页面销毁必须逐一关闭并释放租约。
         endpoints.forEach {
+            it.receiveJob?.cancel()
             it.serialComm.closePort()
             it.serialComm.clearDataListeners()
+            it.serialComm.clearTransportListeners()
+            it.receiveQueue.close()
             it.leasedPort?.let { port -> SerialPortLeaseRegistry.release(port, it.leaseOwner) }
             it.leasedPort = null
         }

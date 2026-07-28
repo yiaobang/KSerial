@@ -32,6 +32,15 @@ class PersistedSettingsTest {
                     showRealTime = false,
                     hexDisplay = true,
                     hexSend = true,
+                    receiveDisplayMode = ReceiveDisplayMode.DELIMITER.name,
+                    receiveWindowMs = "40",
+                    receiveDelimiter = "\\n",
+                    receiveFrameSize = "16",
+                    sendLineEnding = SendLineEnding.CRLF.name,
+                    enterToSend = true,
+                    clearAfterSend = true,
+                    autoReconnect = true,
+                    reconnectIntervalMs = "1500",
                     saveSend = true,
                     saveReceive = true,
                     quickCommandsText = "PING",
@@ -54,6 +63,12 @@ class PersistedSettingsTest {
         assertEquals("1000", preferences.loopIntervalText)
         assertEquals("ERROR", preferences.highlight.keywordsText)
         assertEquals("WARN", preferences.logFilter.query)
+        assertEquals(ReceiveDisplayMode.DELIMITER, preferences.receiveDisplayMode)
+        assertEquals("\\n", preferences.receiveDelimiterText)
+        assertEquals(SendLineEnding.CRLF, preferences.sendLineEnding)
+        assertTrue(preferences.enterToSend)
+        assertTrue(preferences.clearAfterSend)
+        assertTrue(preferences.autoReconnect)
         assertEquals("PING", preferences.toPersistedPreferences().quickCommandsText)
     }
 

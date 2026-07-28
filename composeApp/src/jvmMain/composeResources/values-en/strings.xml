@@ -5,8 +5,10 @@
     <string name="section_gateway">Serial Bridge</string>
     <string name="empty_create_page">Click + above to create a page</string>
     <string name="empty_log">No logs yet. Open a port and wait for data.</string>
+    <string name="empty_gateway_log">No transmitted data yet. Load a configuration and run the bridge.</string>
     <string name="send_input_hint">Enter text or HEX data to send</string>
 
+    <string name="panel_controls">Control Center</string>
     <string name="panel_connection">Connection &amp; Settings</string>
     <string name="panel_actions">Common Actions</string>
     <string name="panel_quick_send">Quick Send</string>
@@ -15,6 +17,8 @@
     <string name="panel_log">Log Filtering</string>
     <string name="panel_send_history">Send History</string>
     <string name="panel_protocol_tools">Protocol Tools</string>
+    <string name="panel_receive_display">Receive Display</string>
+    <string name="panel_line_control">Line Control</string>
     <string name="panel_config">Configuration</string>
     <string name="panel_simulator">Simulator Status</string>
     <string name="panel_route">Forwarding Rules</string>
@@ -27,6 +31,12 @@
     <string name="label_parity">Parity</string>
     <string name="label_flow_control">Flow Control</string>
     <string name="label_advanced_serial_parameters">Frame Settings</string>
+    <string name="label_receive_mode">Receive Framing</string>
+    <string name="label_receive_window">Batch Window</string>
+    <string name="label_receive_delimiter">RX Delimiter</string>
+    <string name="label_receive_frame_size">RX Frame Size</string>
+    <string name="label_line_ending">TX Line Ending</string>
+    <string name="label_reconnect_interval">Reconnect Delay</string>
     <string name="label_interval">Interval</string>
     <string name="label_ms">ms</string>
     <string name="label_tx">TX Count</string>
@@ -47,8 +57,12 @@
     <string name="btn_analog_reply">Simulation</string>
     <string name="btn_load_config">Load Config</string>
     <string name="btn_reload_config">Reload Config</string>
+    <string name="btn_run">Run</string>
+    <string name="btn_stop">Stop</string>
     <string name="btn_clear_log">Clear Log</string>
     <string name="btn_clear_counters">Reset Counts</string>
+    <string name="btn_open_all">Open All</string>
+    <string name="btn_close_all">Close All</string>
     <string name="btn_open">Open</string>
     <string name="btn_close">Close</string>
     <string name="btn_format_hex">Format</string>
@@ -66,6 +80,9 @@
     <string name="opt_loop_send">Loop Send</string>
     <string name="opt_save_send">Save TX</string>
     <string name="opt_save_receive">Save RX</string>
+    <string name="opt_enter_to_send">Enter to Send</string>
+    <string name="opt_clear_after_send">Clear after Send</string>
+    <string name="opt_auto_reconnect">Auto Reconnect</string>
     <string name="opt_enable">Enable</string>
     <string name="opt_ignore_case">Ignore Case</string>
 
@@ -82,10 +99,16 @@
     <string name="label_delimiter">Delimiter HEX</string>
     <string name="frame_mode_fixed">Fixed length</string>
     <string name="frame_mode_delimiter">Delimiter</string>
+    <string name="receive_mode_time_window">Time Window</string>
+    <string name="receive_mode_raw_chunks">Driver Chunks</string>
+    <string name="receive_mode_delimiter">Delimiter Frames</string>
+    <string name="receive_mode_fixed_length">Fixed-Length Frames</string>
+    <string name="line_ending_none">None</string>
     <string name="checksum_result">Result: %1$s</string>
     <string name="checksum_unavailable">Enter valid data to calculate</string>
     <string name="frame_result">%1$d complete frames · %2$d remaining bytes</string>
     <string name="frame_unavailable">Frame settings or input data are invalid</string>
+    <string name="invalid_hex_input">HEX input contains invalid or incomplete bytes</string>
     <string name="search_log">Search logs</string>
     <string name="keyword_separator_hint">Separate with commas, semicolons, or new lines</string>
     <string name="opt_only_matches">Matches Only</string>
@@ -101,6 +124,9 @@
     <string name="gateway_config_dialog_title">Choose serial bridge configuration</string>
     <string name="status_connected">Connected</string>
     <string name="status_disconnected">Disconnected</string>
+    <string name="status_connecting">Connecting</string>
+    <string name="status_reconnecting">Reconnecting</string>
+    <string name="status_error">Connection Error</string>
     <string name="error_loop_interval">Interval must be between 1 and 86400000 ms</string>
     <string name="connection_summary">%1$d baud · %2$s · Flow: %3$s</string>
     <string name="option_none">None</string>
@@ -123,12 +149,16 @@
     <string name="action_copy_row">Copy row</string>
     <string name="action_copy_content">Copy content</string>
     <string name="action_clear_logs">Clear logs</string>
+    <string name="action_show_controls">Show controls</string>
+    <string name="action_hide_controls">Hide controls</string>
+    <string name="send_shortcut_hint">Ctrl+Enter to send · Shift+Enter for a new line</string>
     <string name="confirm_clear_logs_title">Clear logs?</string>
     <string name="confirm_clear_logs_message">Logs on this page will be removed. This cannot be undone.</string>
     <string name="export_logs_dialog_title">Export serial logs</string>
     <string name="logs_copied">Visible logs copied</string>
     <string name="logs_exported">Logs exported: %1$s</string>
     <string name="operation_failed">Operation failed: %1$s</string>
+    <string name="byte_count">%1$d bytes ready</string>
     <string name="config_valid">Configuration is valid</string>
 
     <string name="gateway_mode_one_to_one">One-to-one</string>

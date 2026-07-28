@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 import com.yiaobang.kserial.i18n.Language
+import com.yiaobang.kserial.i18n.RuntimeMessages
 import com.yiaobang.kserial.model.AppPreferences
 import com.yiaobang.kserial.model.ConfigIssue
 import com.yiaobang.kserial.model.ConfigIssueSeverity
@@ -18,11 +19,19 @@ import com.yiaobang.kserial.model.DataWriteFile
 import com.yiaobang.kserial.model.DeviceSimulator
 import com.yiaobang.kserial.model.LogEntry
 import com.yiaobang.kserial.model.LogType
+import com.yiaobang.kserial.model.ReceiveDisplayMode
+import com.yiaobang.kserial.model.ReceiveFrameAssembler
+import com.yiaobang.kserial.model.SendLineEnding
+import com.yiaobang.kserial.model.SerialConnectionState
+import com.yiaobang.kserial.model.SerialLineSignals
 import com.yiaobang.kserial.model.SerialPortConfig
 import com.yiaobang.kserial.model.SendHistoryState
 import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialComm
+import com.yiaobang.kserial.serial.SerialPortInfo
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
+import com.yiaobang.kserial.serial.SerialTransportEvent
+import com.yiaobang.kserial.serial.SerialTransport
 import com.yiaobang.kserial.utils.HexInputParser
 import com.yiaobang.kserial.utils.TextEscapeParser
 import com.yiaobang.kserial.utils.ChecksumAlgorithm
@@ -31,15 +40,19 @@ import com.yiaobang.kserial.utils.toHexString
 import com.yiaobang.kserial.utils.toUtf8String
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.collectLatest
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 
 private data class SerialConnectionSettings(
     val port: String,
@@ -58,11 +71,9 @@ private data class SerialConnectionSettings(
 class SerialViewModel(
     private val autoConnectFirstPort: Boolean = true,
     private val syncOnConfigChange: Boolean = true,
-    val sendHistory: SendHistoryState = SendHistoryState()
+    val sendHistory: SendHistoryState = SendHistoryState(),
+    val serialComm: SerialTransport = SerialComm()
 ) : ViewModel() {
-
-    // ---- 底层通信实例（每个 VM 独立，实现窗口级隔离）----
-    val serialComm = SerialComm()
 
     // ---- 状态持有者（职责分离）----
     /** 串口连接参数 */
@@ -73,9 +84,25 @@ class SerialViewModel(
 
     // ---- 串口列表 ----
     var availablePorts by mutableStateOf(emptyList<String>())
+    var availablePortDetails by mutableStateOf(emptyList<SerialPortInfo>())
 
     // ---- 连接状态 ----
     var isPortOpen by mutableStateOf(false)
+    var connectionState by mutableStateOf(SerialConnectionState.DISCONNECTED)
+        private set
+    var connectionDetail by mutableStateOf("")
+        private set
+    var lineSignals by mutableStateOf(SerialLineSignals())
+        private set
+    var dtrEnabled by mutableStateOf(false)
+        private set
+    var rtsEnabled by mutableStateOf(false)
+        private set
+    var breakEnabled by mutableStateOf(false)
+        private set
+    val isConnectionActive: Boolean
+        get() = isPortOpen || connectionState == SerialConnectionState.CONNECTING ||
+            connectionState == SerialConnectionState.RECONNECTING
 
     // ---- 模拟状态 ----
     var isSimulating by mutableStateOf(false)
@@ -98,11 +125,39 @@ class SerialViewModel(
 
     // ---- 循环发送任务句柄 ----
     private var loopJob: Job? = null
+    private var reconnectJob: Job? = null
+    private var lineSignalJob: Job? = null
     private var simulator: DeviceSimulator? = null
     private var simulatorListener: ((ByteArray) -> Unit)? = null
     private val leaseOwner = "串口页面-${UUID.randomUUID()}"
     private var leasedPort: String? = null
     private var appliedSettings: SerialConnectionSettings? = null
+    private var desiredConnected = false
+    @Volatile
+    private var closingIntentionally = false
+
+    // 驱动线程只负责把不可变字节块放入有界队列；UI 协程按时间窗口批量消费。
+    private val receivedByteTotal = AtomicLong()
+    private val droppedDisplayBytes = AtomicLong()
+    private val receiveQueue = Channel<ByteArray>(
+        capacity = 512,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+        onUndeliveredElement = { droppedDisplayBytes.addAndGet(it.size.toLong()) }
+    )
+    private val receiveAssembler = ReceiveFrameAssembler()
+    private var rxCounterBaseline = 0L
+    private var receiveConfigWarningSignature: String? = null
+
+    private val transportListener: (SerialTransportEvent) -> Unit = { event ->
+        viewModelScope.launch {
+            if (!closingIntentionally && (isPortOpen || leasedPort != null)) {
+                when (event) {
+                    SerialTransportEvent.Disconnected -> handleUnexpectedDisconnect(RuntimeMessages.disconnected(prefs.currentLanguage))
+                    is SerialTransportEvent.Error -> handleTransportError(event.detail)
+                }
+            }
+        }
+    }
 
     init {
         // 启动全局串口监视器
@@ -114,19 +169,27 @@ class SerialViewModel(
                 availablePorts = ports
                 val connectedPort = leasedPort
                 if (connectedPort != null && connectedPort !in ports) {
-                    closeCurrentPort("串口 $connectedPort 已断开")
+                    handleUnexpectedDisconnect(RuntimeMessages.portDisconnected(prefs.currentLanguage, connectedPort))
                 }
                 if (autoConnectFirstPort && config.selectedPort.isEmpty() && ports.isNotEmpty()) {
                     config.selectedPort = ports[0]
+                    desiredConnected = true
                     syncPort()
                 }
             }
         }
 
-        // 注册串口数据回调（解耦：SerialComm 不再持有任何外部依赖）
+        viewModelScope.launch {
+            PortMonitor.portDetails.collect { availablePortDetails = it }
+        }
+
+        // 接收计数在驱动线程累计，因此即使显示队列过载也不会少算物理接收字节。
         serialComm.addDataListener { data ->
+            receivedByteTotal.addAndGet(data.size.toLong())
+            receiveQueue.trySend(data)
             if (prefs.saveReceive) recorder()?.serialCommReceive(data)
         }
+        serialComm.addTransportListener(transportListener)
 
         // 观察串口原始数据流并推送到 UI 列表
         observeDataFlow()
@@ -140,16 +203,58 @@ class SerialViewModel(
 
     private fun observeDataFlow() {
         viewModelScope.launch {
-            serialComm.dataFlow.collect { bytes ->
-                rxCount += bytes.size
-                if (prefs.showRealTime) {
-                    val content = if (prefs.hexDisplay) bytes.toHexString() else String(bytes)
-                    withContext(Dispatchers.Main) {
-                        addLog(content, LogType.RX)
+            while (isActive) {
+                val first = receiveQueue.receiveCatching().getOrNull() ?: break
+                val chunks = collectReceiveBatch(first)
+                rxCount = (receivedByteTotal.get() - rxCounterBaseline).coerceAtLeast(0L)
+
+                val dropped = droppedDisplayBytes.getAndSet(0L)
+                if (dropped > 0) addLog(RuntimeMessages.receiveDropped(prefs.currentLanguage, dropped), LogType.INFO)
+
+                if (!prefs.showRealTime) {
+                    receiveAssembler.reset()
+                    continue
+                }
+
+                val result = receiveAssembler.append(
+                    chunks = chunks,
+                    mode = prefs.receiveDisplayMode,
+                    delimiterText = prefs.receiveDelimiterText,
+                    frameSize = prefs.receiveFrameSize
+                )
+                if (result.invalidConfiguration) {
+                    val signature = "${prefs.receiveDisplayMode}|${prefs.receiveDelimiterText}|${prefs.receiveFrameSizeText}"
+                    if (receiveConfigWarningSignature != signature) {
+                        receiveConfigWarningSignature = signature
+                        addLog(RuntimeMessages.invalidReceiveFraming(prefs.currentLanguage), LogType.INFO)
                     }
+                } else {
+                    receiveConfigWarningSignature = null
+                }
+                if (result.droppedRemainderBytes > 0) {
+                    addLog(RuntimeMessages.receiveRemainderDropped(prefs.currentLanguage, result.droppedRemainderBytes), LogType.INFO)
+                }
+                result.frames.forEach { bytes ->
+                    val content = if (prefs.hexDisplay) bytes.toHexString() else String(bytes)
+                    addLog(content, LogType.RX)
                 }
             }
         }
+    }
+
+    private suspend fun collectReceiveBatch(first: ByteArray): List<ByteArray> {
+        if (prefs.receiveDisplayMode == ReceiveDisplayMode.RAW_CHUNKS) return listOf(first)
+        val chunks = mutableListOf(first)
+        var byteCount = first.size
+        val deadline = System.nanoTime() + prefs.receiveWindowMs * 1_000_000L
+        while (byteCount < 65_536) {
+            val remainingMillis = ((deadline - System.nanoTime()) / 1_000_000L).coerceAtLeast(0L)
+            if (remainingMillis <= 0L) break
+            val next = withTimeoutOrNull(remainingMillis) { receiveQueue.receive() } ?: break
+            chunks += next
+            byteCount += next.size
+        }
+        return chunks
     }
 
     private fun observeConfigChanges() {
@@ -163,7 +268,7 @@ class SerialViewModel(
                             currentConnectionSettings() == settings &&
                             settings != appliedSettings
                         ) {
-                            syncPort()
+                            if (!syncPort() && desiredConnected) ensureReconnectLoop()
                         }
                     }
                 }
@@ -174,42 +279,64 @@ class SerialViewModel(
 
     /** 打开 / 关闭串口的统一入口 */
     fun togglePort() {
-        if (isPortOpen) {
+        if (isConnectionActive) {
+            desiredConnected = false
+            reconnectJob?.cancel()
+            reconnectJob = null
             closeCurrentPort()
         } else {
-            syncPort()
+            desiredConnected = true
+            if (!syncPort()) ensureReconnectLoop()
         }
     }
 
     /** 执行底层连接同步（参数变化时自动调用） */
-    private fun syncPort() {
+    private fun syncPort(reconnecting: Boolean = false): Boolean {
         val settings = currentConnectionSettings()
         val port = settings.port
-        if (port.isEmpty()) return
+        if (port.isEmpty()) {
+            connectionState = SerialConnectionState.ERROR
+            connectionDetail = "serial port not selected"
+            return false
+        }
+        connectionState = if (reconnecting) SerialConnectionState.RECONNECTING else SerialConnectionState.CONNECTING
+        connectionDetail = port
         if (leasedPort != null && leasedPort != port) {
-            closeCurrentPort()
+            closeCurrentPort(message = "", preserveIntent = true)
         }
         if (!SerialPortLeaseRegistry.acquire(port, leaseOwner)) {
-            val owner = SerialPortLeaseRegistry.ownerOf(port) ?: "其他页面"
+            val owner = RuntimeMessages.otherPage(prefs.currentLanguage)
             resetRecorder()
             isPortOpen = false
             appliedSettings = null
-            addLog("$port 已被 $owner 占用", LogType.INFO)
-            return
+            connectionState = SerialConnectionState.ERROR
+            connectionDetail = "$port is used by $owner"
+            addLog(RuntimeMessages.portOccupied(prefs.currentLanguage, port, owner), LogType.INFO)
+            return false
         }
-        val success = serialComm.openPort(
-            settings.port,
-            settings.baudRate,
-            settings.dataBits,
-            settings.stopBitsIndex,
-            settings.parityIndex,
-            settings.flowControlIndex
-        )
+        closingIntentionally = true
+        val success = try {
+            serialComm.openPort(
+                settings.port,
+                settings.baudRate,
+                settings.dataBits,
+                settings.stopBitsIndex,
+                settings.parityIndex,
+                settings.flowControlIndex
+            )
+        } finally {
+            closingIntentionally = false
+        }
         isPortOpen = success
         if (success) {
             leasedPort = port
             appliedSettings = settings
+            connectionState = SerialConnectionState.CONNECTED
+            connectionDetail = connectionSettingsAppliedMessage(settings)
+            reconnectJob?.cancel()
+            reconnectJob = null
             resetRecorder()
+            startLineSignalPolling()
             addLog(connectionSettingsAppliedMessage(settings), LogType.INFO)
         } else {
             SerialPortLeaseRegistry.release(port, leaseOwner)
@@ -217,25 +344,41 @@ class SerialViewModel(
             appliedSettings = null
             resetRecorder()
             val detail = serialComm.lastErrorMessage?.let { ": $it" }.orEmpty()
-            addLog("同步失败: $port$detail", LogType.INFO)
+            connectionState = if (reconnecting) SerialConnectionState.RECONNECTING else SerialConnectionState.ERROR
+            connectionDetail = serialComm.lastErrorMessage.orEmpty()
+            addLog(RuntimeMessages.connectionFailed(prefs.currentLanguage, port, detail), LogType.INFO)
         }
+        return success
     }
 
     /** 发送字符串或 HEX 至串口 */
-    fun sendData(data: String) {
-        if (!isPortOpen || data.isBlank()) return
-        val bytes = if (prefs.hexSend) {
+    fun sendData(data: String): Boolean {
+        if (!isPortOpen || data.isBlank()) return false
+        val bytes = encodeSendData(data) ?: return false
+        val hexMode = prefs.hexSend
+        viewModelScope.launch { sendBytes(data, bytes, hexMode) }
+        return true
+    }
+
+    /** 手动发送当前输入；循环发送和快捷指令不会触发清空。 */
+    fun sendCurrentInput(): Boolean {
+        val accepted = sendData(inputText)
+        if (accepted && prefs.clearAfterSend) inputText = ""
+        return accepted
+    }
+
+    private fun encodeSendData(data: String): ByteArray? {
+        val payload = if (prefs.hexSend) {
             val result = HexInputParser.parse(data)
             if (!result.isValid) {
-                addLog(result.error ?: "Invalid HEX input", LogType.INFO)
-                return
+                addLog(RuntimeMessages.invalidHex(prefs.currentLanguage), LogType.INFO)
+                return null
             }
             result.bytes ?: byteArrayOf()
         } else {
             TextEscapeParser.decodeToByteArray(data)
         }
-        val hexMode = prefs.hexSend
-        viewModelScope.launch { sendBytes(data, bytes, hexMode) }
+        return if (prefs.hexSend) payload else payload + prefs.sendLineEnding.bytes
     }
 
     fun canSend(data: String): Boolean {
@@ -243,11 +386,20 @@ class SerialViewModel(
         return !prefs.hexSend || HexInputParser.parse(data).isValid
     }
 
+    fun pendingSendByteCount(data: String = inputText): Int? {
+        if (data.isBlank()) return 0
+        return if (prefs.hexSend) {
+            HexInputParser.parse(data).bytes?.size
+        } else {
+            TextEscapeParser.decodeToByteArray(data).size + prefs.sendLineEnding.bytes.size
+        }
+    }
+
     private suspend fun sendBytes(source: String, bytes: ByteArray, hexMode: Boolean) {
         if (bytes.isEmpty()) return
         val sent = withContext(Dispatchers.IO) { serialComm.write(bytes) }
         if (sent < 0) {
-            closeCurrentPort("发送失败，连接已关闭")
+            handleUnexpectedDisconnect(RuntimeMessages.sendFailed(prefs.currentLanguage, serialComm.lastErrorMessage.orEmpty()))
             return
         }
         if (prefs.saveSend) recorder()?.serialCommSend(bytes)
@@ -289,6 +441,38 @@ class SerialViewModel(
         }
     }
 
+    fun setAutoReconnect(enabled: Boolean) {
+        prefs.autoReconnect = enabled
+        if (enabled && desiredConnected && !isPortOpen) {
+            ensureReconnectLoop()
+        } else if (!enabled) {
+            reconnectJob?.cancel()
+            reconnectJob = null
+            if (!isPortOpen) connectionState = SerialConnectionState.DISCONNECTED
+        }
+    }
+
+    fun setDtr(enabled: Boolean): Boolean {
+        if (!isPortOpen || config.flowControlIndex == 2) return false
+        val changed = serialComm.setDtr(enabled)
+        if (changed) dtrEnabled = enabled
+        return changed
+    }
+
+    fun setRts(enabled: Boolean): Boolean {
+        if (!isPortOpen || config.flowControlIndex == 1) return false
+        val changed = serialComm.setRts(enabled)
+        if (changed) rtsEnabled = enabled
+        return changed
+    }
+
+    fun setBreak(enabled: Boolean): Boolean {
+        if (!isPortOpen) return false
+        val changed = serialComm.setBreak(enabled)
+        if (changed) breakEnabled = enabled
+        return changed
+    }
+
     fun checksum(algorithm: ChecksumAlgorithm): ByteArray? =
         inputBytesOrNull()?.let { ChecksumUtils.calculate(it, algorithm) }
 
@@ -318,6 +502,7 @@ class SerialViewModel(
         }
         val newSimulator = DeviceSimulator.createDeviceSimulator(file)
         if (newSimulator != null) {
+            if (isConnectionActive) togglePort()
             clearSimulator()
             applySimulatorEndpointConfig(file)
             applySimulatorHighlightConfig(file)
@@ -330,7 +515,7 @@ class SerialViewModel(
                         val content = if (prefs.hexDisplay) data.toHexString() else data.toUtf8String()
                         addLog(content, LogType.TX)
                     } else {
-                        closeCurrentPort("自动回复发送失败，连接已关闭")
+                        handleUnexpectedDisconnect(RuntimeMessages.sendFailed(prefs.currentLanguage, serialComm.lastErrorMessage.orEmpty()))
                     }
                 }
             }
@@ -340,14 +525,11 @@ class SerialViewModel(
             simulatorListener = listener
             isSimulating = true
             simulatorConfigName = file.name
-            addLog("自动回复配置加载成功: ${file.name}", LogType.INFO)
-            if (isPortOpen || readSimulatorAutoOpen(file)) {
-                syncPort()
-            }
+            addLog(RuntimeMessages.simulatorLoaded(prefs.currentLanguage, file.name), LogType.INFO)
         } else {
             clearSimulator()
             simulatorConfigName = ""
-            addLog("自动回复配置解析失败", LogType.INFO)
+            addLog(RuntimeMessages.simulatorFailed(prefs.currentLanguage), LogType.INFO)
             isSimulating = false
         }
     }
@@ -365,7 +547,7 @@ class SerialViewModel(
         stopLoopSend()
         if (!prefs.isLoopIntervalValid) {
             prefs.loopSendEnabled = false
-            addLog("循环发送间隔必须在 1 到 86400000 毫秒之间", LogType.INFO)
+            addLog(RuntimeMessages.invalidLoopInterval(prefs.currentLanguage), LogType.INFO)
             return
         }
         if (prefs.loopSendEnabled && isPortOpen) {
@@ -378,15 +560,13 @@ class SerialViewModel(
                         if (parseResult != null && !parseResult.isValid) {
                             prefs.loopSendEnabled = false
                             addLog(
-                                "循环发送已停止: ${parseResult.error ?: "Invalid HEX input"}",
+                                RuntimeMessages.loopStopped(prefs.currentLanguage, RuntimeMessages.invalidHex(prefs.currentLanguage)),
                                 LogType.INFO
                             )
                             break
                         }
-                        val bytes = if (hexMode) {
-                            parseResult?.bytes ?: byteArrayOf()
-                        } else {
-                            TextEscapeParser.decodeToByteArray(data)
+                        val bytes = if (hexMode) parseResult?.bytes ?: byteArrayOf() else {
+                            TextEscapeParser.decodeToByteArray(data) + prefs.sendLineEnding.bytes
                         }
                         if (bytes.isNotEmpty()) sendBytes(data, bytes, hexMode)
                     }
@@ -405,13 +585,21 @@ class SerialViewModel(
 
     fun clearLogs() = logs.clear()
     fun clearTx() { txCount = 0 }
-    fun clearRx() { rxCount = 0 }
+    fun clearRx() {
+        rxCounterBaseline = receivedByteTotal.get()
+        rxCount = 0
+    }
 
     // ---- 资源回收 ----
 
     public override fun onCleared() {
+        desiredConnected = false
+        reconnectJob?.cancel()
+        lineSignalJob?.cancel()
         closeCurrentPort()
         serialComm.clearDataListeners()
+        serialComm.clearTransportListeners()
+        receiveQueue.close()
         clearSimulator()
         stopLoopSend()
         logs.clear()
@@ -420,16 +608,72 @@ class SerialViewModel(
         super.onCleared()
     }
 
-    private fun closeCurrentPort(message: String = "连接已断开") {
+    private fun closeCurrentPort(message: String? = null, preserveIntent: Boolean = false) {
+        val resolvedMessage = message ?: RuntimeMessages.disconnected(prefs.currentLanguage)
         val wasConnected = isPortOpen || leasedPort != null
-        serialComm.closePort()
+        closingIntentionally = true
+        try {
+            serialComm.closePort()
+        } finally {
+            closingIntentionally = false
+        }
         leasedPort?.let { SerialPortLeaseRegistry.release(it, leaseOwner) }
         leasedPort = null
         appliedSettings = null
         resetRecorder()
         isPortOpen = false
+        lineSignalJob?.cancel()
+        lineSignalJob = null
+        lineSignals = SerialLineSignals()
+        dtrEnabled = false
+        rtsEnabled = false
+        breakEnabled = false
+        receiveAssembler.reset()
+        while (receiveQueue.tryReceive().isSuccess) {
+            // 丢弃旧连接仍在队列中的显示数据，避免重连后混入上一会话。
+        }
         stopLoopSend()
-        if (wasConnected) addLog(message, LogType.INFO)
+        if (!preserveIntent) desiredConnected = false
+        connectionState = SerialConnectionState.DISCONNECTED
+        connectionDetail = resolvedMessage
+        if (wasConnected && resolvedMessage.isNotBlank()) addLog(resolvedMessage, LogType.INFO)
+    }
+
+    private fun handleUnexpectedDisconnect(detail: String) {
+        if (!isPortOpen && leasedPort == null && connectionState == SerialConnectionState.RECONNECTING) return
+        val shouldReconnect = desiredConnected && prefs.autoReconnect
+        closeCurrentPort(message = RuntimeMessages.connectionLost(prefs.currentLanguage, detail), preserveIntent = shouldReconnect)
+        if (shouldReconnect) ensureReconnectLoop()
+        else {
+            connectionState = SerialConnectionState.ERROR
+            connectionDetail = detail
+        }
+    }
+
+    private fun handleTransportError(detail: String) {
+        connectionDetail = detail
+        addLog(RuntimeMessages.lineEvent(prefs.currentLanguage, detail), LogType.INFO)
+    }
+
+    private fun ensureReconnectLoop() {
+        if (!desiredConnected || !prefs.autoReconnect || reconnectJob?.isActive == true) return
+        connectionState = SerialConnectionState.RECONNECTING
+        reconnectJob = viewModelScope.launch {
+            while (isActive && desiredConnected && prefs.autoReconnect && !isPortOpen) {
+                delay(prefs.reconnectIntervalMs)
+                if (config.selectedPort in availablePorts && syncPort(reconnecting = true)) break
+            }
+        }
+    }
+
+    private fun startLineSignalPolling() {
+        lineSignalJob?.cancel()
+        lineSignalJob = viewModelScope.launch {
+            while (isActive && isPortOpen) {
+                lineSignals = withContext(Dispatchers.IO) { serialComm.lineSignals() }
+                delay(250)
+            }
+        }
     }
 
     private fun recorder(): DataWriteFile? {
@@ -502,17 +746,9 @@ class SerialViewModel(
         if (!simulatorConfig.hasPath("highlight")) return
         val highlightConfig = simulatorConfig.getConfig("highlight")
         val keywords = highlightConfig.optionalStringList("keywords")
-        if (keywords.isNotEmpty()) {
-            prefs.highlight.setKeywords(keywords)
-            prefs.highlight.enabled = highlightConfig.optionalBoolean("enabled") ?: true
-        } else {
-            highlightConfig.optionalBoolean("enabled")?.let { prefs.highlight.enabled = it }
-        }
-        highlightConfig.optionalBoolean("ignoreCase")?.let { prefs.highlight.ignoreCase = it }
-    }
-
-    private fun readSimulatorAutoOpen(file: File): Boolean {
-        return readSimulatorEndpoint(file)?.optionalBoolean("autoOpen") == true
+        prefs.highlight.setKeywords(keywords)
+        prefs.highlight.enabled = highlightConfig.optionalBoolean("enabled") ?: keywords.isNotEmpty()
+        prefs.highlight.ignoreCase = highlightConfig.optionalBoolean("ignoreCase") ?: true
     }
 
     private fun readSimulatorEndpoint(file: File): Config? {

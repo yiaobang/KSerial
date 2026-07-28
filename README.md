@@ -21,11 +21,13 @@ KSerial 使用 Kotlin 和 Compose Multiplatform 构建，面向嵌入式开发�
 
 ## 核心能力
 
-- 自动发现串口，支持配置波特率、数据位、停止位、校验位和流控。
-- 支持文本与 HEX 收发、HEX 实时校验与格式化、循环发送和快捷命令。
+- 自动发现串口并显示设备友好名称，支持手动刷新以及配置波特率、数据位、停止位、校验位和流控。
+- 支持文本与 HEX 收发、HEX 实时校验与格式化、可选行尾、循环发送、快捷命令，以及 `Ctrl+Enter` / `Enter` 快速发送。
+- 接收区支持时间窗口、原始数据块、分隔符和定长四种显示分帧模式，并采用有界缓冲与丢弃计数避免高吞吐数据拖垮界面。
+- 提供明确的连接状态、异常断开检测与可选自动重连，同时支持 DTR、RTS、Break 控制和 CTS、DSR、DCD、RI 信号查看。
 - 提供发送历史、键盘回溯、CRC16-Modbus/XOR/SUM8/LRC 校验和及通用分帧检查。
 - 提供 TX/RX 统计、日志搜索与类型过滤、关键词高亮、复制、TXT/CSV 导出和数据落盘。
-- 使用 JSON 或 HOCON `.conf` 描述设备响应规则，支持定长和分隔符分帧。
+- 使用 HOCON `.conf` / `.hocon` 描述设备响应规则，支持定长和分隔符分帧。
 - 通过配置连接多个串口端点，支持一对一、一对多和多对多转发。
 - 支持多标签页、标签页独立窗口和合并，同时阻止同一串口被多个工作区重复占用。
 - 内置简体中文、英文和日文，以及浅色、深色主题。
@@ -58,7 +60,8 @@ KSerial 使用 Kotlin 和 Compose Multiplatform 构建，面向嵌入式开发�
 1. 打开 **串口终端**，点击 `+` 新建标签页。
 2. 在右侧“连接与通信设置”中选择串口，并设置波特率等通信参数。
 3. 打开串口，在底部输入区发送文本或 HEX 数据。文本模式会在发送前完整解析转义序列：`\\`、`\'`、`\"`、`\?`、`\a`、`\b`、`\e`、`\f`、`\n`、`\r`、`\s`、`\t`、`\v`、八进制 `\ooo`、原始字节 `\xHH`、Unicode `\uHHHH` / `\UHHHHHHHH`，以及控制字符 `\cX`。
-4. 根据需要启用循环发送、快捷发送、关键词高亮、日志过滤或 TX/RX 数据保存。
+4. 使用 `Ctrl+Enter` 发送；也可启用 Enter 发送（此时 `Shift+Enter` 换行），并按协议选择 LF、CR 或 CRLF 行尾。
+5. 根据需要启用自动重连、接收分帧、循环发送、快捷发送、关键词高亮、日志过滤或 TX/RX 数据保存。
 
 需要模拟设备时，在 **设备模拟** 中加载规则配置；需要在多个串口之间转发数据时，在 **串口桥接** 中加载端点与路由配置。
 
@@ -88,6 +91,13 @@ KSerial 使用 Kotlin 和 Compose Multiplatform 构建，面向嵌入式开发�
 | `preferences.showRealTime` | 日志是否显示实时时间。 |
 | `preferences.hexDisplay` | 接收内容是否以 HEX 显示。 |
 | `preferences.hexSend` | 发送输入是否按 HEX 解析。 |
+| `preferences.receiveDisplayMode` | 接收显示模式：`TIME_WINDOW`、`RAW_CHUNKS`、`DELIMITER` 或 `FIXED_LENGTH`。 |
+| `preferences.receiveWindowMs` | 时间窗口模式的批量刷新间隔，单位为毫秒。 |
+| `preferences.receiveDelimiter` | 分隔符模式使用的文本分隔符，支持与文本发送相同的转义规则。 |
+| `preferences.receiveFrameSize` | 定长模式的每帧字节数。 |
+| `preferences.sendLineEnding` | 文本发送时追加的行尾：`NONE`、`LF`、`CR` 或 `CRLF`；HEX 发送不追加。 |
+| `preferences.enterToSend` / `clearAfterSend` | 是否使用 Enter 发送，以及发送成功后是否清空输入框。 |
+| `preferences.autoReconnect` / `reconnectIntervalMs` | 异常断开后是否自动重连，以及重试间隔（毫秒）。 |
 | `preferences.saveSend` / `saveReceive` | 是否保存发送、接收数据。 |
 | `preferences.quickCommandsText` | 快捷发送命令，每行一条；使用与文本发送相同的转义规则。 |
 | `preferences.highlightEnabled` / `highlightIgnoreCase` / `highlightKeywords` | 关键词高亮开关、大小写规则和关键词列表。 |
@@ -122,7 +132,6 @@ simulator {
     stopBits = 1
     parity = "none"
     flowControl = "none"
-    autoOpen = false
   }
 
   encode = "ASCII"
@@ -134,7 +143,7 @@ simulator {
 }
 ```
 
-`encode` 可使用 `HEX` 或文本模式；`packSize` 用于固定长度分帧，`delimiter` 用于分隔符分帧。二者至少需要配置一个。配置加载时会检查无效 HEX、空分隔符、重复端口和无效路由引用等常见问题。
+`encode` 可使用 `HEX` 或文本模式；`packSize` 用于固定长度分帧，`delimiter` 用于分隔符分帧，二者必须且只能配置一个。设备模拟必须提供完整端点，串口桥接必须提供至少两个端点和一条启用路由。配置加载时会检查无效 HEX、空分隔符、缺失端口、重复端口和无效路由引用等常见问题。
 
 ## 从源码运行
 

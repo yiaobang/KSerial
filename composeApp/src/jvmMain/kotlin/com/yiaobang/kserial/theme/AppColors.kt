@@ -3,8 +3,10 @@ package com.yiaobang.kserial.theme
 import androidx.compose.ui.graphics.Color
 
 /**
- * 应用全局色值定义 (1:1 复刻 Apple 设计语言)
- * 职责：定义浅色与深色两种模式下的核心视觉令牌。
+ * 应用全局色值定义。
+ *
+ * 色板保持克制的桌面工具风格：背景负责分区，表面承载内容，强调色只用于
+ * 主操作、选中态和连接状态。所有界面组件都从这里取色，避免各页面自行拼色。
  */
 data class AppColors(
     val primary: Color,      // 主题高亮色 (用于主按钮)
@@ -12,37 +14,41 @@ data class AppColors(
     val error: Color,        // 错误色 (用于断开状态、错误提示)
     val background: Color,   // 主背景色
     val surface: Color,      // 容器盒子的背景色 (如输入框、卡片)
+    val surfaceMuted: Color, // 次级表面 (标签栏、输入背景和悬浮工具区)
     val onSurface: Color,    // 表面文字主色
     val border: Color,       // 分割线与边框色
-    val topBar: Color        // 沉浸式标题栏背景色
+    val topBar: Color,       // 标题栏与主导航的应用框架色
+    val onTopBar: Color      // 应用框架上的文字与图标色
 )
 
 /**
- * 极简浅色模式 (Light Mode)
- * 基于 Cupertino 标准系统色
+ * 浅色模式。
  */
 val CupertinoLightColors = AppColors(
-    primary = Color(0xFF007AFF),   // 系统蓝
-    success = Color(0xFF34C759),   // 系统绿
-    error = Color(0xFFFF3B30),     // 系统红
-    background = Color(0xFFF5F7FA), // 背景灰
-    surface = Color.White,         // 纯白表面
-    onSurface = Color(0xFF171A1F), // 深灰文字
-    border = Color(0xFFD5DAE1),    // 灰色边框
-    topBar = Color(0xFFEDF0F4)     // 略深的标题栏
+    primary = Color(0xFF2F6BFF),
+    success = Color(0xFF168B63),
+    error = Color(0xFFD84A5F),
+    background = Color(0xFFF2F5F9),
+    surface = Color(0xFFFFFFFF),
+    surfaceMuted = Color(0xFFF7F9FC),
+    onSurface = Color(0xFF1A2333),
+    border = Color(0xFFDCE3ED),
+    topBar = Color(0xFFF8FAFD),
+    onTopBar = Color(0xFF1A2333)
 )
 
 /**
- * 极简深色模式 (Dark Mode)
- * 基于 Cupertino 高对比度深色系统色
+ * 深色模式。
  */
 val CupertinoDarkColors = AppColors(
-    primary = Color(0xFF0A84FF),   // 深色蓝
-    success = Color(0xFF30D158),   // 深色绿
-    error = Color(0xFFFF453A),     // 深色红
-    background = Color(0xFF0E1116), // 深色背景
-    surface = Color(0xFF171B22),   // 灰黑色表面
-    onSurface = Color(0xFFF2F4F7), // 浅色文字
-    border = Color(0xFF303742),    // 深色边框
-    topBar = Color(0xFF141820)     // 标题栏
+    primary = Color(0xFF78A7FF),
+    success = Color(0xFF45C996),
+    error = Color(0xFFFF7180),
+    background = Color(0xFF0F141D),
+    surface = Color(0xFF181F2A),
+    surfaceMuted = Color(0xFF131A24),
+    onSurface = Color(0xFFEDF2F8),
+    border = Color(0xFF2A3545),
+    topBar = Color(0xFF0C1320),
+    onTopBar = Color(0xFFF0F4FC)
 )

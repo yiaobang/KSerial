@@ -25,7 +25,7 @@ class SimulatorHardwareTest {
         val peer = HardwareTestSupport.open(peerPort, baudRate = 9600)
         val config = HardwareTestSupport.tempConfig("kserial-text-simulator", """
             simulator {
-              endpoint { port = "$simulatorPort", baudRate = 9600, autoOpen = true }
+              endpoint { port = "$simulatorPort", baudRate = 9600 }
               encode = "ASCII"
               delimiter = "\r\n"
               rules = [
@@ -38,6 +38,7 @@ class SimulatorHardwareTest {
         try {
             viewModel.loadSimulator(config.toFile())
             assertTrue(viewModel.isSimulating)
+            viewModel.togglePort()
             assertTrue(viewModel.isPortOpen)
 
             val expected = "OK\r\nKSerial 1.0\r\n".encodeToByteArray()
@@ -80,7 +81,6 @@ class SimulatorHardwareTest {
                 stopBits = 1
                 parity = "even"
                 flowControl = "none"
-                autoOpen = true
               }
               encode = "HEX"
               packSize = 4
@@ -94,6 +94,7 @@ class SimulatorHardwareTest {
         try {
             viewModel.loadSimulator(config.toFile())
             assertTrue(viewModel.isSimulating)
+            viewModel.togglePort()
             assertTrue(viewModel.isPortOpen)
 
             val requests = byteArrayOf(0x01, 0x03, 0x00, 0x00, 0x01, 0x06, 0x00, 0x01)

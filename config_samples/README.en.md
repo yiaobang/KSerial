@@ -2,7 +2,7 @@
 
 [简体中文](README.md) · **English** · [日本語](README.ja.md)
 
-The `.conf` files in this directory are ordered from basic to advanced. Start by copying the closest example, then change its port names, communication parameters, and rules. Do not enable `autoOpen` before verifying the target device and port.
+The `.conf` files in this directory are ordered from basic to advanced. Start by copying the closest example, then change its port names, communication parameters, and rules. Loading a configuration only validates and prepares it; serial ports open only after you click **Run**.
 
 ## Do `.conf` files support comments?
 
@@ -14,7 +14,7 @@ port = "COM2" // This is an end-of-line comment.
 baudRate = 115200 # This form works as well.
 ```
 
-Quote actual values that contain `#`, `//`, spaces, or escape sequences so they are not interpreted as comments or split into tokens. This comment syntax applies to HOCON `.conf` / `.hocon` files; legacy JSON configuration does not support comments.
+Quote actual values that contain `#`, `//`, spaces, or escape sequences so they are not interpreted as comments or split into tokens. Configuration import accepts HOCON `.conf` / `.hocon` files only.
 
 ## Learning path
 
@@ -32,40 +32,55 @@ Quote actual values that contain `#`, `//`, spaces, or escape sequences so they 
 | Field | Required | Description |
 | --- | --- | --- |
 | `simulator` | No | Recommended root object. Its children may also be placed directly at the file root. |
-| `endpoint` | No | Serial connection settings. If omitted, the current page settings remain active and a warning is shown. |
-| `encode` | No | `HEX` selects hexadecimal bytes; every other value is handled as UTF-8 text. Text is the default. |
-| `delimiter` | One of two | Delimiter framing. Use a normal string in text mode or HEX bytes in HEX mode. |
-| `packSize` | One of two | Fixed frame size from 1 to 4096 bytes. A valid value takes precedence over `delimiter`. |
-| `rules` | Yes | A list of `request` / `response` pairs. Request values should be unique. |
-| `highlight` | No | Log keywords, enabled state, and case-sensitivity settings. |
+| `simulator.endpoint` | Yes | Complete serial settings for this simulation; stale page selections are never used. |
+| `simulator.encode` | No | `HEX` selects hexadecimal bytes. `ASCII`, `TEXT`, `UTF8`, and `UTF-8` use UTF-8 text. Default: `UTF8`. |
+| `simulator.delimiter` | Exactly one | Delimiter framing. Use a normal string in text mode or HEX bytes in HEX mode. |
+| `simulator.packSize` | Exactly one | Fixed frame size from 1 to 4096 bytes. It cannot be combined with `delimiter`. |
+| `simulator.rules` | Yes | At least one `request` / `response` rule. Request values should be unique. |
+| `simulator.rules[].request` | Yes | Request content matched after a complete frame is received. |
+| `simulator.rules[].response` | Yes | Response bytes written after the request matches. |
+| `simulator.highlight` | No | Log keywords, enabled state, and case-sensitivity settings. |
 
-With `delimiter`, every rule's `request` must include the trailing delimiter, such as `request = "AT\r\n"`. With `packSize`, each decoded request must contain exactly the configured number of bytes.
+Exactly one of `delimiter` and `packSize` must be present. With `delimiter`, every rule's `request` must include the trailing delimiter, such as `request = "AT\r\n"`. With `packSize`, each decoded request must contain exactly the configured number of bytes.
 
 ## Serial Bridge fields
 
 | Field | Required | Description |
 | --- | --- | --- |
-| `gateway.endpoints` | Yes | Serial endpoints. Every `id` must be unique, and a physical port should appear only once. |
-| `gateway.routes` | No | Explicit forwarding routes. When routes exist, enabled routes determine forwarding. |
-| `route.sources` | Yes | Endpoint IDs allowed to trigger the route. |
-| `route.targets` | Yes | Endpoint IDs that receive forwarded data. |
-| `route.enabled` | No | Enables the route; defaults to `true`. |
+| `gateway` | No | Recommended root object. Its children may also be placed directly at the file root. |
+| `gateway.endpoints` | Yes | At least two serial endpoints. A physical port may appear only once. |
+| `gateway.endpoints[].id` | Yes | Unique endpoint ID referenced by routes. |
+| `gateway.endpoints[].name` | No | Endpoint name shown in logs. Defaults to `id`. |
+| `gateway.routes` | Yes | A non-empty route list with at least one enabled route. |
+| `gateway.routes[].name` | No | Display name. Defaults to generated names such as `route1`. |
+| `gateway.routes[].sources` | Yes | Non-empty list of endpoint IDs allowed to trigger the route. |
+| `gateway.routes[].targets` | Yes | Non-empty list of endpoint IDs that receive forwarded data. |
+| `gateway.routes[].enabled` | No | Enables the route; defaults to `true`. |
 | `gateway.highlight` | No | Keyword highlighting for bridge logs. |
 
-An endpoint may participate in multiple routes, and a source may forward to multiple targets. Every value in `sources` and `targets` must reference an ID declared in `endpoints`.
+An endpoint may participate in multiple routes, and a source may forward to multiple targets. Every value in `sources` and `targets` must reference an ID declared in `endpoints`. A failed import clears the previous bridge configuration so stale routes cannot be run accidentally.
 
 ## Endpoint communication settings
 
-Device Simulator `endpoint` and Serial Bridge `endpoints` share these fields:
+Device Simulator `endpoint` and Serial Bridge `endpoints[]` share these communication fields:
 
-| Field | Default or accepted values |
-| --- | --- |
-| `port` | System port name, such as `COM3` or `/dev/ttyUSB0` |
-| `baudRate` | Default: `9600` |
-| `dataBits` | Default: `8` |
-| `stopBits` | `1`, `1.5`, `2` |
-| `parity` | `none`, `odd`, `even`, `mark`, `space` |
-| `flowControl` | `none`, `rts_cts`, `dsr_dtr`, `xon_xoff`; forms containing `/` are also accepted |
-| `autoOpen` | Default: `false`; whether to open the port immediately after loading |
+| Field | Required | Default or accepted values | Description |
+| --- | --- | --- | --- |
+| `port` | Yes | No default | System port name, such as `COM3` or `/dev/ttyUSB0`. |
+| `baudRate` | Yes | Positive integer | Baud rate, such as `9600` or `115200`. |
+| `dataBits` | No | Default: `8`; range: `5`–`8` | Number of data bits. |
+| `stopBits` | No | Default: `1`; accepted: `1`, `1.5`, `2` | Number of stop bits. |
+| `parity` | No | Default: `none` | `none`, `odd`, `even`, `mark`, or `space`. |
+| `flowControl` | No | Default: `none` | `none`, `rts_cts`, `dsr_dtr`, or `xon_xoff`; forms containing `/` are also accepted. |
 
-Keep `autoOpen = false` when trying an example for the first time. Enable it only after confirming the port and communication parameters.
+Do not add `autoOpen`. Importing only validates and prepares a configuration; serial ports open only after Run is clicked.
+
+## Log highlighting fields
+
+Device Simulator uses `simulator.highlight`, while Serial Bridge uses `gateway.highlight`. Both contain the same fields:
+
+| Field | Required | Default | Description |
+| --- | --- | --- | --- |
+| `highlight.enabled` | No | `true` when keywords are present | Enables keyword highlighting. |
+| `highlight.ignoreCase` | No | `true` | Ignores letter case while matching. |
+| `highlight.keywords` | No | Empty list | Text keywords to highlight. |

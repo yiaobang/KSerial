@@ -1,6 +1,7 @@
 package com.yiaobang.kserial
 
 import com.yiaobang.kserial.model.LogType
+import com.yiaobang.kserial.model.SendLineEnding
 import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
 import com.yiaobang.kserial.utils.ChecksumAlgorithm
@@ -30,6 +31,17 @@ class SerialViewModelTest {
 
         viewModel.inputText = "invalid"
         assertEquals(null, viewModel.inputBytesOrNull())
+    }
+
+    @Test
+    fun pendingSendByteCountIncludesTextLineEndingButNotHexSuffix() = withViewModel { viewModel ->
+        viewModel.prefs.sendLineEnding = SendLineEnding.CRLF
+        viewModel.prefs.hexSend = false
+        assertEquals(4, viewModel.pendingSendByteCount("AT"))
+
+        viewModel.prefs.hexSend = true
+        assertEquals(2, viewModel.pendingSendByteCount("0A FF"))
+        assertEquals(null, viewModel.pendingSendByteCount("0G"))
     }
 
     @Test
@@ -90,6 +102,7 @@ class SerialViewModelTest {
 
             viewModel.loadSimulator(valid.toFile())
             assertTrue(viewModel.isSimulating)
+            assertFalse(viewModel.isPortOpen)
             assertEquals("COM88", viewModel.config.selectedPort)
             assertEquals(115200, viewModel.config.baudRate)
             assertEquals(7, viewModel.config.dataBits)

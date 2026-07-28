@@ -21,11 +21,13 @@ KSerial は Kotlin と Compose Multiplatform で構築され、組み込み開�
 
 ## 主な機能
 
-- シリアルポートを自動検出し、ボーレート、データビット、ストップビット、パリティ、フロー制御を設定。
-- テキストまたは HEX の送受信、HEX のリアルタイム検証と整形、繰り返し送信、クイック送信に対応。
+- 機器名付きでシリアルポートを検出し、手動更新、ボーレート、データビット、ストップビット、パリティ、フロー制御の設定に対応。
+- テキストまたは HEX の送受信、HEX のリアルタイム検証、行末の選択、繰り返し送信、クイック送信、`Ctrl+Enter` / `Enter` 送信に対応。
+- 時間ウィンドウ、受信チャンク、区切り文字、固定長の 4 種類で受信表示を分割し、高負荷時は有界バッファーと破棄数表示で UI を保護。
+- 接続状態、異常切断、任意の自動再接続に加え、DTR・RTS・Break 制御と CTS・DSR・DCD・RI 信号表示に対応。
 - 履歴のキーボード操作、CRC16-Modbus・XOR・SUM8・LRC の計算、汎用フレーム確認に対応。
 - TX/RX カウンター、ログ検索と種類別フィルター、キーワード強調、コピー、TXT/CSV 出力、通信データの保存を提供。
-- JSON または HOCON `.conf` で応答ルールを定義し、固定長および区切り文字ベースのフレーム分割に対応。
+- HOCON `.conf` / `.hocon` で応答ルールを定義し、固定長および区切り文字ベースのフレーム分割に対応。
 - 複数のシリアル端点を接続し、1 対 1、1 対多、多対多の転送ルートを設定可能。
 - 複数タブ、タブの別ウィンドウ化と再統合に対応し、同じポートの重複使用を防止。
 - 簡体字中国語、英語、日本語、およびライト・ダークテーマを内蔵。
@@ -58,7 +60,8 @@ KSerial は Kotlin と Compose Multiplatform で構築され、組み込み開�
 1. **シリアル端末**を開き、`+` を選択してタブを作成します。
 2. 「接続と通信設定」でポートを選択し、ボーレートなどの通信条件を設定します。
 3. ポートを開き、画面下部の入力欄からテキストまたは HEX データを送信します。テキストモードは送信前に `\\`、`\'`、`\"`、`\?`、`\a`、`\b`、`\e`、`\f`、`\n`、`\r`、`\s`、`\t`、`\v`、8 進 `\ooo`、生バイト `\xHH`、Unicode `\uHHHH` / `\UHHHHHHHH`、制御文字 `\cX` を展開します。
-4. 必要に応じて繰り返し送信、クイック送信、キーワード強調、ログフィルター、TX/RX 保存を有効にします。
+4. `Ctrl+Enter` で送信します。Enter 送信を有効にした場合は `Shift+Enter` で改行でき、必要に応じて LF、CR、CRLF を追加できます。
+5. 必要に応じて自動再接続、受信フレーム分割、繰り返し送信、クイック送信、キーワード強調、ログフィルター、TX/RX 保存を有効にします。
 
 機器を模擬する場合は **デバイス模擬** でルール設定を読み込み、ポート間でデータを転送する場合は **シリアルブリッジ** で端点とルートの設定を読み込みます。
 
@@ -88,6 +91,13 @@ KSerial は Kotlin と Compose Multiplatform で構築され、組み込み開�
 | `preferences.showRealTime` | ログに時刻を表示するか。 |
 | `preferences.hexDisplay` | 受信データを HEX 表示するか。 |
 | `preferences.hexSend` | 送信入力を HEX として解釈するか。 |
+| `preferences.receiveDisplayMode` | 受信表示モード：`TIME_WINDOW`、`RAW_CHUNKS`、`DELIMITER`、`FIXED_LENGTH`。 |
+| `preferences.receiveWindowMs` | 時間ウィンドウモードの一括更新間隔（ミリ秒）。 |
+| `preferences.receiveDelimiter` | 区切り文字モードのテキスト区切り。テキスト送信と同じエスケープ構文を使用。 |
+| `preferences.receiveFrameSize` | 固定長モードの 1 フレーム当たりのバイト数。 |
+| `preferences.sendLineEnding` | テキスト送信に追加する行末：`NONE`、`LF`、`CR`、`CRLF`。HEX 送信には追加しません。 |
+| `preferences.enterToSend` / `clearAfterSend` | Enter で送信するか、および送信成功後に入力欄を消去するか。 |
+| `preferences.autoReconnect` / `reconnectIntervalMs` | 異常切断後に再接続するか、および再試行間隔（ミリ秒）。 |
 | `preferences.saveSend` / `saveReceive` | 送信・受信データを保存するか。 |
 | `preferences.quickCommandsText` | クイック送信コマンド。1 行に 1 件、テキスト送信と同じエスケープ規則を使用。 |
 | `preferences.highlightEnabled` / `highlightIgnoreCase` / `highlightKeywords` | キーワード強調の有効状態、大文字小文字の規則、キーワード一覧。 |
@@ -122,7 +132,6 @@ simulator {
     stopBits = 1
     parity = "none"
     flowControl = "none"
-    autoOpen = false
   }
 
   encode = "ASCII"
@@ -134,7 +143,7 @@ simulator {
 }
 ```
 
-バイト単位のルールには `encode = "HEX"` を使用します。`packSize` は固定長フレーム、`delimiter` は区切り文字フレームに使用し、少なくとも一方が必要です。設定の読み込み時には、不正な HEX、空の区切り文字、ポートの重複、無効なルート参照などを検出します。
+バイト単位のルールには `encode = "HEX"` を使用します。`packSize` は固定長フレーム、`delimiter` は区切り文字フレームに使用し、必ずどちらか一方だけを指定します。デバイス模擬には完全な端点設定、シリアルブリッジには 2 つ以上の端点と 1 件以上の有効なルートが必要です。設定の読み込み時には、不正な HEX、空の区切り文字、ポート不足、ポート重複、無効なルート参照などを検出します。
 
 ## ソースから実行
 

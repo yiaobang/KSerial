@@ -2,6 +2,7 @@ package com.yiaobang.kserial.hardware
 
 import com.yiaobang.kserial.SerialViewModel
 import com.yiaobang.kserial.model.LogType
+import com.yiaobang.kserial.model.SendLineEnding
 import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
 import com.yiaobang.kserial.utils.TextEscapeParser
@@ -44,6 +45,32 @@ class TerminalHardwareTest {
             HardwareTestSupport.eventually {
                 viewModel.txCount == expected.size.toLong() && viewModel.sendHistory.snapshot().firstOrNull() == source
             }
+        } finally {
+            viewModel.onCleared()
+            peer.closePort()
+        }
+    }
+
+    @Test
+    fun terminalAppendsConfiguredTextLineEnding() {
+        HardwareTestSupport.requireHardware(pairCount = 1)
+        val (peerPort, terminalPort) = HardwareTestSupport.pairs[0]
+        val peer = HardwareTestSupport.open(peerPort)
+        val viewModel = SerialViewModel(autoConnectFirstPort = false, syncOnConfigChange = false)
+        try {
+            viewModel.config.selectedPort = terminalPort
+            viewModel.prefs.sendLineEnding = SendLineEnding.CRLF
+            viewModel.togglePort()
+            assertTrue(viewModel.isPortOpen)
+
+            val expected = "AT\r\n".encodeToByteArray()
+            val capture = SerialCapture(expected.size)
+            peer.addDataListener(capture.listener)
+            assertTrue(viewModel.sendData("AT"))
+
+            val received = capture.await()
+            HardwareTestSupport.traceReceived(peerPort, received)
+            assertContentEquals(expected, received)
         } finally {
             viewModel.onCleared()
             peer.closePort()

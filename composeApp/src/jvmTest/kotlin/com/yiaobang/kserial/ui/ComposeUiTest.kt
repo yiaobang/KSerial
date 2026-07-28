@@ -49,17 +49,25 @@ class ComposeUiTest {
             }
 
             onNodeWithContentDescription("Device Simulator").performClick()
-            onNodeWithText("Click + above to create a page").assertExists()
-            onNodeWithContentDescription("New page").performClick()
             onNodeWithText("Load Config").assertExists()
+            onNodeWithText("Run").assertExists()
+            onNodeWithText("Stop").assertExists()
+            onNodeWithText("Quick Send").assertDoesNotExist()
             runOnIdle {
                 assertEquals(WorkspaceSection.Simulator, workspace.mainHost.selectedSection)
                 assertEquals(1, workspace.tabIdsFor(workspace.mainHost).size)
             }
 
+            onNodeWithContentDescription("Device Simulator").performClick()
+            runOnIdle {
+                assertEquals(1, workspace.tabIdsFor(workspace.mainHost).size)
+            }
+
             onNodeWithContentDescription("Serial Bridge").performClick()
-            onNodeWithContentDescription("New page").performClick()
-            onNodeWithText("Load a conf file to show serial endpoints and forwarding rules").assertExists()
+            onNodeWithText("Load Config").assertExists()
+            onNodeWithText("Run").assertExists()
+            onNodeWithText("Stop").assertExists()
+            onNodeWithText("Forwarding Rules").assertDoesNotExist()
             runOnIdle {
                 assertEquals(WorkspaceSection.Gateway, workspace.mainHost.selectedSection)
                 assertEquals(1, workspace.tabIdsFor(workspace.mainHost).size)
@@ -177,6 +185,31 @@ class ComposeUiTest {
     }
 
     @Test
+    fun serialControlPanelExposesReceiveFramingReconnectAndLineControls() = runComposeUiTest {
+        val viewModel = SerialViewModel(autoConnectFirstPort = false, syncOnConfigChange = false)
+        try {
+            setContent {
+                TestTheme {
+                    Box(Modifier.width(360.dp)) { ControlPanel(viewModel) }
+                }
+            }
+
+            onNodeWithText("Serial Port").assertExists()
+            onNodeWithText("Receive Display").performClick()
+            onNodeWithText("Receive Framing").assertExists()
+            onNodeWithText("Time Window").assertExists()
+            onNodeWithText("Line Control").performClick()
+            onNodeWithText("DTR").assertExists()
+            onNodeWithText("RTS").assertExists()
+            onNodeWithText("BREAK").assertExists()
+        } finally {
+            viewModel.onCleared()
+            PortMonitor.stop()
+            SerialPortLeaseRegistry.clear()
+        }
+    }
+
+    @Test
     fun statusBarShowsConnectionAndProvidesAccessibleCounterResetActions() = runComposeUiTest {
         val viewModel = SerialViewModel(autoConnectFirstPort = false, syncOnConfigChange = false).apply {
             config.selectedPort = "COM42"
@@ -200,6 +233,44 @@ class ComposeUiTest {
             viewModel.onCleared()
             PortMonitor.stop()
             SerialPortLeaseRegistry.clear()
+        }
+    }
+
+    @Test
+    fun emptyStatusBarDoesNotRepeatThePortSelectionPlaceholder() = runComposeUiTest {
+        val viewModel = SerialViewModel(autoConnectFirstPort = false, syncOnConfigChange = false)
+        try {
+            setContent { TestTheme { AppStatusBar(viewModel) } }
+
+            onNodeWithText("Disconnected").assertExists()
+            onNodeWithText("Not selected").assertDoesNotExist()
+        } finally {
+            viewModel.onCleared()
+            PortMonitor.stop()
+            SerialPortLeaseRegistry.clear()
+        }
+    }
+
+    @Test
+    fun inspectorCanCollapseAndRestoreWithoutCoveringTheWorkspace() = runComposeUiTest {
+        val settingsPath = Files.createTempDirectory("kserial-inspector-ui").resolve("settings.conf")
+        val workspace = WorkspaceState(AppSettingsStore(settingsPath)).apply {
+            prefs.currentLanguage = Language.EN
+        }
+        try {
+            setContent {
+                Box(Modifier.size(1120.dp, 760.dp)) {
+                    WorkspaceApp(workspace, workspace.mainHost, onClose = {}, onMinimize = {})
+                }
+            }
+
+            onNodeWithText("Control Center").assertExists()
+            onNodeWithContentDescription("Hide controls").performClick()
+            onNodeWithText("Control Center").assertDoesNotExist()
+            onNodeWithContentDescription("Show controls").performClick()
+            onNodeWithText("Control Center").assertExists()
+        } finally {
+            workspace.disposeAll()
         }
     }
 

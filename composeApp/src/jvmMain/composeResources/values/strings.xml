@@ -5,8 +5,10 @@
     <string name="section_gateway">串口桥接</string>
     <string name="empty_create_page">点击上方 + 创建一个页面</string>
     <string name="empty_log">暂无日志，打开串口后等待数据</string>
+    <string name="empty_gateway_log">暂无发送记录，加载配置并运行后等待转发</string>
     <string name="send_input_hint">输入要发送的文本或 HEX 数据</string>
 
+    <string name="panel_controls">控制中心</string>
     <string name="panel_connection">连接与参数</string>
     <string name="panel_actions">常用操作</string>
     <string name="panel_quick_send">快捷发送</string>
@@ -15,6 +17,8 @@
     <string name="panel_log">日志筛选</string>
     <string name="panel_send_history">发送历史</string>
     <string name="panel_protocol_tools">协议工具</string>
+    <string name="panel_receive_display">接收显示</string>
+    <string name="panel_line_control">线路控制</string>
     <string name="panel_config">配置文件</string>
     <string name="panel_simulator">模拟状态</string>
     <string name="panel_route">转发规则</string>
@@ -27,6 +31,12 @@
     <string name="label_parity">校验位</string>
     <string name="label_flow_control">流控</string>
     <string name="label_advanced_serial_parameters">帧格式设置</string>
+    <string name="label_receive_mode">显示分帧</string>
+    <string name="label_receive_window">聚合窗口</string>
+    <string name="label_receive_delimiter">接收分隔符</string>
+    <string name="label_receive_frame_size">接收帧长</string>
+    <string name="label_line_ending">发送行尾</string>
+    <string name="label_reconnect_interval">重连间隔</string>
     <string name="label_interval">发送周期</string>
     <string name="label_ms">毫秒</string>
     <string name="label_tx">发送计数</string>
@@ -47,8 +57,12 @@
     <string name="btn_analog_reply">设备模拟</string>
     <string name="btn_load_config">加载配置</string>
     <string name="btn_reload_config">重新加载配置</string>
+    <string name="btn_run">运行</string>
+    <string name="btn_stop">停止</string>
     <string name="btn_clear_log">清除日志</string>
     <string name="btn_clear_counters">清零计数</string>
+    <string name="btn_open_all">全部打开</string>
+    <string name="btn_close_all">全部关闭</string>
     <string name="btn_open">打开</string>
     <string name="btn_close">关闭</string>
     <string name="btn_format_hex">格式化</string>
@@ -66,6 +80,9 @@
     <string name="opt_loop_send">循环发送</string>
     <string name="opt_save_send">保存发送</string>
     <string name="opt_save_receive">保存接收</string>
+    <string name="opt_enter_to_send">Enter 发送</string>
+    <string name="opt_clear_after_send">发送后清空</string>
+    <string name="opt_auto_reconnect">断线自动重连</string>
     <string name="opt_enable">启用</string>
     <string name="opt_ignore_case">忽略大小写</string>
 
@@ -82,10 +99,16 @@
     <string name="label_delimiter">分隔符 HEX</string>
     <string name="frame_mode_fixed">固定长度</string>
     <string name="frame_mode_delimiter">分隔符</string>
+    <string name="receive_mode_time_window">时间窗口</string>
+    <string name="receive_mode_raw_chunks">驱动原始块</string>
+    <string name="receive_mode_delimiter">分隔符分帧</string>
+    <string name="receive_mode_fixed_length">固定长度分帧</string>
+    <string name="line_ending_none">不追加</string>
     <string name="checksum_result">结果：%1$s</string>
     <string name="checksum_unavailable">请输入有效数据后计算</string>
     <string name="frame_result">完整帧 %1$d · 剩余 %2$d 字节</string>
     <string name="frame_unavailable">帧参数或输入数据无效</string>
+    <string name="invalid_hex_input">HEX 输入包含无效字符或字节不完整</string>
     <string name="search_log">搜索日志</string>
     <string name="keyword_separator_hint">用逗号、分号或换行分隔</string>
     <string name="opt_only_matches">只看匹配</string>
@@ -101,6 +124,9 @@
     <string name="gateway_config_dialog_title">选择串口桥接配置文件</string>
     <string name="status_connected">已连接</string>
     <string name="status_disconnected">未连接</string>
+    <string name="status_connecting">正在连接</string>
+    <string name="status_reconnecting">等待重连</string>
+    <string name="status_error">连接异常</string>
     <string name="error_loop_interval">发送周期必须为 1～86400000 毫秒</string>
     <string name="connection_summary">%1$d baud · %2$s · 流控：%3$s</string>
     <string name="option_none">无</string>
@@ -123,12 +149,16 @@
     <string name="action_copy_row">复制整行</string>
     <string name="action_copy_content">复制内容</string>
     <string name="action_clear_logs">清空日志</string>
+    <string name="action_show_controls">显示控制面板</string>
+    <string name="action_hide_controls">隐藏控制面板</string>
+    <string name="send_shortcut_hint">Ctrl+Enter 发送 · Shift+Enter 换行</string>
     <string name="confirm_clear_logs_title">清空日志？</string>
     <string name="confirm_clear_logs_message">当前页面的日志将被清空，此操作无法撤销。</string>
     <string name="export_logs_dialog_title">导出串口日志</string>
     <string name="logs_copied">已复制可见日志</string>
     <string name="logs_exported">日志已导出：%1$s</string>
     <string name="operation_failed">操作失败：%1$s</string>
+    <string name="byte_count">待发送 %1$d 字节</string>
     <string name="config_valid">配置校验通过</string>
 
     <string name="gateway_mode_one_to_one">一对一</string>

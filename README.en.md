@@ -21,11 +21,13 @@ KSerial is built with Kotlin and Compose Multiplatform for embedded development,
 
 ## Highlights
 
-- Discover serial ports automatically and configure baud rate, data bits, stop bits, parity, and flow control.
-- Send and receive text or HEX data with live HEX validation, formatting, loop sending, and quick commands.
+- Discover serial ports with friendly device names, refresh them manually, and configure baud rate, data bits, stop bits, parity, and flow control.
+- Send and receive text or HEX data with live HEX validation, optional line endings, loop sending, quick commands, and `Ctrl+Enter` / `Enter` shortcuts.
+- Display incoming data by time window, raw callback chunk, delimiter, or fixed length, with bounded buffering and visible drop counts under heavy traffic.
+- Track explicit connection states, detect unexpected disconnects, optionally reconnect, control DTR/RTS/Break, and inspect CTS/DSR/DCD/RI signals.
 - Reuse bounded send history with keyboard navigation, and calculate CRC16-Modbus, XOR, SUM8, or LRC checksums.
 - Inspect TX/RX counters, search and filter logs, highlight keywords, copy entries, export TXT/CSV, and persist traffic to disk.
-- Describe device response rules in JSON or HOCON `.conf` files, with fixed-length and delimiter-based framing.
+- Describe device response rules in HOCON `.conf` / `.hocon` files, with fixed-length and delimiter-based framing.
 - Connect multiple serial endpoints with configurable one-to-one, one-to-many, and many-to-many routes.
 - Work with multiple tabs, detach tabs into separate windows, merge them back, and prevent duplicate port ownership.
 - Switch between Simplified Chinese, English, and Japanese, with light and dark themes.
@@ -58,7 +60,8 @@ Release packages include the application runtime, so end users normally do not n
 1. Open **Serial Console** and select `+` to create a tab.
 2. Choose a port and set its baud rate and other parameters under “Connection & Settings.”
 3. Open the port and send text or HEX data from the input area at the bottom. Before sending, text mode fully decodes `\\`, `\'`, `\"`, `\?`, `\a`, `\b`, `\e`, `\f`, `\n`, `\r`, `\s`, `\t`, `\v`, octal `\ooo`, raw-byte `\xHH`, Unicode `\uHHHH` / `\UHHHHHHHH`, and control-character `\cX` escapes.
-4. Enable loop sending, quick commands, keyword highlighting, log filters, or TX/RX persistence as needed.
+4. Press `Ctrl+Enter` to send, or enable Enter-to-send (`Shift+Enter` inserts a line break), and select LF, CR, or CRLF when the protocol needs a terminator.
+5. Enable automatic reconnect, receive framing, loop sending, quick commands, keyword highlighting, log filters, or TX/RX persistence as needed.
 
 To emulate a device, load a rule file in **Device Simulator**. To forward data across ports, load endpoint and route configuration in **Serial Bridge**.
 
@@ -88,6 +91,13 @@ KSerial writes `settings.conf` as comment-free HOCON. Manually added comments ca
 | `preferences.showRealTime` | Whether timestamps appear in logs. |
 | `preferences.hexDisplay` | Whether received data is displayed as HEX. |
 | `preferences.hexSend` | Whether send input is interpreted as HEX. |
+| `preferences.receiveDisplayMode` | Receive display mode: `TIME_WINDOW`, `RAW_CHUNKS`, `DELIMITER`, or `FIXED_LENGTH`. |
+| `preferences.receiveWindowMs` | Batch refresh interval in milliseconds for time-window mode. |
+| `preferences.receiveDelimiter` | Text delimiter used by delimiter mode, with the same escape syntax as text send. |
+| `preferences.receiveFrameSize` | Bytes per frame in fixed-length mode. |
+| `preferences.sendLineEnding` | Text-send suffix: `NONE`, `LF`, `CR`, or `CRLF`; HEX send is unchanged. |
+| `preferences.enterToSend` / `clearAfterSend` | Whether Enter sends and whether successful sends clear the input. |
+| `preferences.autoReconnect` / `reconnectIntervalMs` | Whether to reconnect after an unexpected disconnect and the retry interval in milliseconds. |
 | `preferences.saveSend` / `saveReceive` | Whether transmitted and received data are saved. |
 | `preferences.quickCommandsText` | Quick-send commands, one per line, using the same escapes as text send. |
 | `preferences.highlightEnabled` / `highlightIgnoreCase` / `highlightKeywords` | Keyword highlight switch, case rule, and keyword list. |
@@ -122,7 +132,6 @@ simulator {
     stopBits = 1
     parity = "none"
     flowControl = "none"
-    autoOpen = false
   }
 
   encode = "ASCII"
@@ -134,7 +143,7 @@ simulator {
 }
 ```
 
-Use `HEX` for `encode` when working with byte-oriented rules. `packSize` enables fixed-length framing, while `delimiter` enables delimiter-based framing; at least one must be present. Configuration loading reports common errors such as invalid HEX, empty delimiters, duplicate ports, and broken route references.
+Use `HEX` for `encode` when working with byte-oriented rules. `packSize` enables fixed-length framing, while `delimiter` enables delimiter-based framing; exactly one must be present. A simulator must define a complete endpoint, while a bridge must define at least two endpoints and one enabled route. Configuration loading reports invalid HEX, empty delimiters, missing ports, duplicate ports, and broken route references.
 
 ## Run from source
 

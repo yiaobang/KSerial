@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import com.yiaobang.kserial.SerialViewModel
 import com.yiaobang.kserial.feature.GatewayViewModel
@@ -19,25 +20,17 @@ import com.yiaobang.kserial.model.toPersistedPreferences
 import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
 import com.yiaobang.kserial.utils.AppPaths
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private const val MAIN_HOST_ID = 0
-
-/** 左侧导航中的三个功能域；每个功能域维护独立的活动标签页。 */
-enum class WorkspaceSection(val label: String) {
-    Basic("串口终端"),
-    Simulator("设备模拟"),
-    Gateway("串口桥接")
-}
-
-/** 一个可在主窗口和浮动窗口之间移动的业务标签页。 */
-class AppTab(
-    val id: Int,
-    val section: WorkspaceSection,
-    val title: String,
-    val titleIndex: Int,
-    val serialViewModel: SerialViewModel? = null,
-    val gatewayViewModel: GatewayViewModel? = null
-)
 
 /**
  * 一个桌面窗口的轻量状态。ViewModel 归标签页所有，窗口只保存标签顺序和选择状态，
@@ -58,6 +51,7 @@ class WindowHostState(
 class WorkspaceState(
     private val settingsStore: AppSettingsStore = AppSettingsStore()
 ) {
+    private val persistenceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val configDirectoryResult = AppPaths.initializeConfigDirectory()
     private val settingsLoadResult = settingsStore.load()
     private val initialSettings = settingsLoadResult.settings
@@ -77,19 +71,28 @@ class WorkspaceState(
         // 始终保留一个基础终端作为首次启动入口，同时把初始化问题显示在页面日志中。
         val tabId = openTab(WorkspaceSection.Basic, mainHost.id, autoConnectBasic = false)
         configDirectoryResult.exceptionOrNull()?.let { error ->
-            tab(tabId)?.serialViewModel?.addLog(
+            (tab(tabId)?.content as? SerialWorkspaceTabContent)?.viewModel?.addLog(
                 "Unable to initialize ${AppPaths.CONF_FILE_PATH.absolutePath}: ${error.message ?: error::class.simpleName}",
                 LogType.INFO
             )
         }
         settingsLoadResult.warning?.let { warning ->
-            tab(tabId)?.serialViewModel?.addLog(warning, LogType.INFO)
+            (tab(tabId)?.content as? SerialWorkspaceTabContent)?.viewModel?.addLog(warning, LogType.INFO)
         }
         saveSettings().exceptionOrNull()?.let { error ->
-            tab(tabId)?.serialViewModel?.addLog(
+            (tab(tabId)?.content as? SerialWorkspaceTabContent)?.viewModel?.addLog(
                 "Unable to save ${settingsStore.settingsFile}: ${error.message ?: error::class.simpleName}",
                 LogType.INFO
             )
+        }
+        // 用户偏好和串口参数在变化停止后自动保存；输入内容与循环发送仍明确不持久化。
+        persistenceScope.launch {
+            snapshotFlow { persistedSettingsSnapshot() }
+                .drop(1)
+                .collectLatest { settings ->
+                    delay(750)
+                    withContext(Dispatchers.IO) { settingsStore.save(settings) }
+                }
         }
     }
 
@@ -104,13 +107,13 @@ class WorkspaceState(
     }
 
     fun tabTitle(tab: AppTab): String {
-        val selectedPort = tab.serialViewModel?.config?.selectedPort
+        val selectedPort = tab.content.selectedPort
         return if (!selectedPort.isNullOrBlank()) selectedPort else tab.title
     }
 
     fun hostTitle(host: WindowHostState): String {
         if (host.id == MAIN_HOST_ID) return "KSerial"
-        val activeTitle = activeTab(host)?.let { tabTitle(it) } ?: host.selectedSection.label
+        val activeTitle = activeTab(host)?.let { tabTitle(it) } ?: host.selectedSection.fallbackTitle
         return "KSerial - $activeTitle"
     }
 
@@ -123,27 +126,28 @@ class WorkspaceState(
         val id = nextTabId++
         val titleIndex = nextSectionTitleIndex(section)
         // 终端和模拟器复用串口 VM；桥接拥有多端点，必须使用专门的 GatewayViewModel。
-        val tab = AppTab(
-            id = id,
-            section = section,
-            title = fallbackTabTitle(section, titleIndex),
-            titleIndex = titleIndex,
-            serialViewModel = when (section) {
-                WorkspaceSection.Basic -> createSerialViewModel(
+        val content = when (section) {
+            WorkspaceSection.Basic -> BasicTabContent(
+                createSerialViewModel(
                     autoConnectFirstPort = autoConnectBasic,
                     syncOnConfigChange = true
                 )
-                WorkspaceSection.Simulator -> createSerialViewModel(
+            )
+            WorkspaceSection.Simulator -> SimulatorTabContent(
+                createSerialViewModel(
                     autoConnectFirstPort = false,
                     syncOnConfigChange = false
                 )
-                WorkspaceSection.Gateway -> null
-            },
-            gatewayViewModel = if (section == WorkspaceSection.Gateway) {
+            )
+            WorkspaceSection.Gateway -> GatewayTabContent(
                 GatewayViewModel().apply { language = prefs.currentLanguage }
-            } else {
-                null
-            }
+            )
+        }
+        val tab = AppTab(
+            id = id,
+            title = fallbackTabTitle(section, titleIndex),
+            titleIndex = titleIndex,
+            content = content
         )
         tabs[id] = tab
         host.tabIds += id
@@ -160,6 +164,20 @@ class WorkspaceState(
     fun selectSection(hostId: Int, section: WorkspaceSection) {
         val host = findHost(hostId) ?: return
         host.selectedSection = section
+
+        val activeTabId = host.activeTabBySection[section]
+        val hasValidActiveTab = activeTabId != null &&
+            activeTabId in host.tabIds &&
+            tab(activeTabId)?.section == section
+        if (hasValidActiveTab) return
+
+        val existingTabId = host.tabIds.firstOrNull { tabId -> tab(tabId)?.section == section }
+        if (existingTabId != null) {
+            host.activeTabBySection[section] = existingTabId
+        } else {
+            // 功能域首次进入时懒创建默认页；已有会话仍优先恢复，不重复初始化资源。
+            openTab(section, host.id)
+        }
     }
 
     fun selectTab(hostId: Int, tabId: Int) {
@@ -251,17 +269,12 @@ class WorkspaceState(
 
     fun switchTheme() {
         prefs.switchTheme()
-        tabs.values.forEach { tab ->
-            tab.serialViewModel?.prefs?.isDark = prefs.isDark
-        }
+        tabs.values.forEach { tab -> tab.content.applyTheme(prefs.isDark) }
     }
 
     fun switchLanguage() {
         prefs.switchLanguage()
-        tabs.values.forEach { tab ->
-            tab.serialViewModel?.prefs?.currentLanguage = prefs.currentLanguage
-            tab.gatewayViewModel?.language = prefs.currentLanguage
-        }
+        tabs.values.forEach { tab -> tab.content.applyLanguage(prefs.currentLanguage) }
     }
 
     fun toggleAlwaysOnTop() {
@@ -270,6 +283,7 @@ class WorkspaceState(
 
     fun disposeAll() {
         // 退出前先保存仍然可读的页面状态，再关闭串口并清理全局监视器/租约。
+        persistenceScope.cancel()
         saveSettings()
         tabs.values.toList().forEach { disposeTab(it.id) }
         tabs.clear()
@@ -289,7 +303,9 @@ class WorkspaceState(
             sendHistory = sendHistory
         ).also {
             // 新页面继承最近串口页面的配置；首次页面则使用磁盘中的启动快照。
-            val source = tabs.values.lastOrNull { tab -> tab.serialViewModel != null }?.serialViewModel
+            val source = tabs.values
+                .mapNotNull { tab -> (tab.content as? SerialWorkspaceTabContent)?.viewModel }
+                .lastOrNull()
             if (source != null) {
                 it.config.applyPersisted(source.config.toPersisted())
                 it.prefs.applyPersisted(prefs.toPersistedAppearance(), source.prefs.toPersistedPreferences())
@@ -303,16 +319,19 @@ class WorkspaceState(
     }
 
     fun saveSettings(): Result<java.nio.file.Path> {
+        return settingsStore.save(persistedSettingsSnapshot())
+    }
+
+    private fun persistedSettingsSnapshot(): PersistedSettings {
         // 优先保存主窗口当前终端，若它不存在则使用任意仍存活的串口页面作为配置来源。
-        val source = tab(mainHost.activeTabBySection[WorkspaceSection.Basic])?.serialViewModel
-            ?: tabs.values.firstNotNullOfOrNull { it.serialViewModel }
-        val settings = PersistedSettings(
+        val source = (tab(mainHost.activeTabBySection[WorkspaceSection.Basic])?.content as? SerialWorkspaceTabContent)?.viewModel
+            ?: tabs.values.firstNotNullOfOrNull { (it.content as? SerialWorkspaceTabContent)?.viewModel }
+        return PersistedSettings(
             appearance = prefs.toPersistedAppearance(),
             serial = source?.config?.toPersisted() ?: initialSettings.serial,
             preferences = source?.prefs?.toPersistedPreferences() ?: initialSettings.preferences,
             sendHistory = sendHistory.snapshot()
         )
-        return settingsStore.save(settings)
     }
 
     private fun nextSectionTitleIndex(section: WorkspaceSection): Int {
@@ -322,13 +341,12 @@ class WorkspaceState(
     }
 
     private fun fallbackTabTitle(section: WorkspaceSection, titleIndex: Int): String {
-        return if (titleIndex == 1) section.label else "${section.label} $titleIndex"
+        return if (titleIndex == 1) section.fallbackTitle else "${section.fallbackTitle} $titleIndex"
     }
 
     private fun disposeTab(tabId: Int) {
         val tab = tabs.remove(tabId) ?: return
-        tab.serialViewModel?.onCleared()
-        tab.gatewayViewModel?.onCleared()
+        tab.content.dispose()
     }
 
     private fun findHost(hostId: Int): WindowHostState? {
