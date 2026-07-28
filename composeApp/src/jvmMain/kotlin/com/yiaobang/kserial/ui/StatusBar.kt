@@ -1,8 +1,6 @@
 package com.yiaobang.kserial.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -18,87 +16,88 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yiaobang.kserial.SerialViewModel
 import com.yiaobang.kserial.i18n.LocalAppStrings
+import com.yiaobang.kserial.model.SerialConnectionState
 import com.yiaobang.kserial.theme.LocalAppColors
 
-/**
- * 底部分色状态栏
- * 左半部显示发送计数（点击清零），右半部显示接收计数（点击清零）
- */
+/** 底部状态栏：集中显示连接信息及可点击清零的 TX/RX 计数。 */
 @Composable
 fun AppStatusBar(vm: SerialViewModel) {
     val s = LocalAppStrings.current
     val colors = LocalAppColors.current
-    Row(
+    Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
-            .border(BorderStroke(1.dp, colors.border.copy(0.3f)))
+            .height(34.dp)
+            .background(colors.surfaceMuted)
     ) {
-        Box(
-            modifier = Modifier
-                .widthIn(min = 170.dp, max = 230.dp)
-                .fillMaxHeight()
-                .background(colors.surface),
-            contentAlignment = Alignment.CenterStart
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Box(
+                modifier = Modifier
+                    .widthIn(min = 170.dp, max = 230.dp)
+                    .fillMaxHeight(),
+                contentAlignment = Alignment.CenterStart
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(if (vm.isPortOpen) colors.success else colors.onSurface.copy(alpha = 0.30f))
-                )
-                Column {
-                    Text(
-                        if (vm.isPortOpen) s.statusConnected else s.statusDisconnected,
-                        color = colors.onSurface,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(CircleShape)
+                            .background(if (vm.isPortOpen) colors.success else colors.onSurface.copy(alpha = 0.28f))
                     )
-                    Text(
-                        vm.config.selectedPort.ifBlank { s.notSelected },
-                        color = colors.onSurface.copy(alpha = 0.48f),
-                        fontSize = 10.sp
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Text(
+                            when (vm.connectionState) {
+                                SerialConnectionState.CONNECTED -> s.statusConnected
+                                SerialConnectionState.CONNECTING -> s.statusConnecting
+                                SerialConnectionState.RECONNECTING -> s.statusReconnecting
+                                SerialConnectionState.ERROR -> s.statusError
+                                SerialConnectionState.DISCONNECTED -> s.statusDisconnected
+                            },
+                            color = colors.onSurface.copy(alpha = 0.72f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        if (vm.config.selectedPort.isNotBlank()) {
+                            Text("·", color = colors.onSurface.copy(alpha = 0.30f), fontSize = 11.sp)
+                            Text(
+                                vm.config.selectedPort,
+                                color = colors.onSurface.copy(alpha = 0.54f),
+                                fontSize = 11.sp,
+                                maxLines = 1
+                            )
+                        }
+                    }
                 }
             }
+            Spacer(Modifier.weight(1f))
+            StatusCounter(s.labelTx, vm.txCount, colors.primary) { vm.clearTx() }
+            Box(Modifier.width(1.dp).height(16.dp).background(colors.border.copy(alpha = 0.72f)))
+            StatusCounter(s.labelRx, vm.rxCount, colors.success) { vm.clearRx() }
         }
-        // 左：发送统计
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .background(colors.primary.copy(alpha = 0.12f))
-                .clickable { vm.clearTx() }
-                // 整块计数区域都可点击重置，语义描述使键盘/辅助技术也能稳定定位该操作。
-                .semantics { contentDescription = "${s.labelTx} ${vm.txCount}" },
-            contentAlignment = Alignment.Center
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(s.labelTx, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = colors.onSurface.copy(0.7f))
-                Spacer(Modifier.width(10.dp))
-                Text(vm.txCount.toString(), color = colors.primary, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-        }
-        // 右：接收统计
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .background(colors.success.copy(alpha = 0.12f))
-                .clickable { vm.clearRx() }
-                .semantics { contentDescription = "${s.labelRx} ${vm.rxCount}" },
-            contentAlignment = Alignment.Center
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(s.labelRx, fontWeight = FontWeight.SemiBold, fontSize = 12.sp, color = colors.onSurface.copy(0.7f))
-                Spacer(Modifier.width(10.dp))
-                Text(vm.rxCount.toString(), color = colors.success, fontWeight = FontWeight.Bold, fontSize = 16.sp)
-            }
-        }
+        Box(Modifier.align(Alignment.TopCenter).fillMaxWidth().height(1.dp).background(colors.border.copy(alpha = 0.82f)))
+    }
+}
+
+/** 紧凑状态计数器；点击仍可清零，但不再用大色块抢占主界面注意力。 */
+@Composable
+private fun StatusCounter(label: String, value: Long, color: androidx.compose.ui.graphics.Color, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxHeight()
+            .clickable(onClick = onClick)
+            .semantics { contentDescription = "$label $value" }
+            .padding(horizontal = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(7.dp)
+    ) {
+        Text(label, fontWeight = FontWeight.Medium, fontSize = 11.sp, color = LocalAppColors.current.onSurface.copy(0.56f))
+        Text(value.toString(), color = color, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
     }
 }

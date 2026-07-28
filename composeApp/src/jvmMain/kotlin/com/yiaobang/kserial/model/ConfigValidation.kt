@@ -27,31 +27,40 @@ data class ConfigValidationResult(
  * 校验阶段只读取文件，不打开串口；这样 UI 可以先完整展示问题，再决定是否应用配置。
  */
 object ConfigValidator {
-    fun validateSimulator(file: File, language: Language): ConfigValidationResult = runCatching {
-        val parsed = ConfigFactory.parseFile(file).resolve()
-        val config = if (parsed.hasPath("simulator")) parsed.getConfig("simulator") else parsed
-        ConfigValidationResult(config, validateSimulatorConfig(config, language))
-    }.getOrElse { error ->
-        ConfigValidationResult(
-            null,
-            listOf(error(language, "配置解析失败", "Configuration parsing failed", "設定の解析に失敗しました", error))
-        )
+    fun validateSimulator(file: File, language: Language): ConfigValidationResult {
+        unsupportedFileResult(file, language)?.let { return it }
+        return runCatching {
+            val parsed = ConfigFactory.parseFile(file).resolve()
+            val config = if (parsed.hasPath("simulator")) parsed.getConfig("simulator") else parsed
+            ConfigValidationResult(config, validateSimulatorConfig(config, language))
+        }.getOrElse { error ->
+            ConfigValidationResult(
+                null,
+                listOf(error(language, "配置解析失败", "Configuration parsing failed", "設定の解析に失敗しました", error))
+            )
+        }
     }
 
-    fun validateGateway(file: File, language: Language): ConfigValidationResult = runCatching {
-        val parsed = ConfigFactory.parseFile(file).resolve()
-        val config = if (parsed.hasPath("gateway")) parsed.getConfig("gateway") else parsed
-        ConfigValidationResult(config, validateGatewayConfig(config, language))
-    }.getOrElse { error ->
-        ConfigValidationResult(
-            null,
-            listOf(error(language, "配置解析失败", "Configuration parsing failed", "設定の解析に失敗しました", error))
-        )
+    fun validateGateway(file: File, language: Language): ConfigValidationResult {
+        unsupportedFileResult(file, language)?.let { return it }
+        return runCatching {
+            val parsed = ConfigFactory.parseFile(file).resolve()
+            val config = if (parsed.hasPath("gateway")) parsed.getConfig("gateway") else parsed
+            ConfigValidationResult(config, validateGatewayConfig(config, language))
+        }.getOrElse { error ->
+            ConfigValidationResult(
+                null,
+                listOf(error(language, "配置解析失败", "Configuration parsing failed", "設定の解析に失敗しました", error))
+            )
+        }
     }
 
     private fun validateSimulatorConfig(config: Config, language: Language): List<ConfigIssue> {
         val issues = mutableListOf<ConfigIssue>()
-        validateEndpoint(config.optionalConfig("endpoint"), language, "simulator.endpoint", required = false, issues)
+        validateEndpoint(config.optionalConfig("endpoint"), language, "simulator.endpoint", issues)
+        config.optionalConfig("highlight")?.let {
+            validateHighlight(it, language, "simulator.highlight", issues)
+        }
 
         val encode = config.optionalString("encode")?.uppercase() ?: "UTF8"
         if (encode !in setOf("HEX", "UTF8", "UTF-8", "ASCII", "TEXT")) {
@@ -63,7 +72,7 @@ object ConfigValidator {
             )
         }
 
-        // 定长分帧和分隔符分帧可同时声明，但运行时与校验器都以 packSize 为优先。
+        // 控制中心不再提供分帧模式选择，因此配置必须明确且只能选择一种分帧方式。
         val packSizeRaw = config.optionalString("packSize")
         val packSize = packSizeRaw?.toIntOrNull()
         val delimiterRaw = config.optionalString("delimiter")
@@ -73,8 +82,8 @@ object ConfigValidator {
         if (packSizeRaw != null && (packSize == null || packSize !in 1..4096)) {
             issues += error(language, "packSize 必须为 1～4096", "packSize must be between 1 and 4096", "packSize は 1～4096 で指定してください")
         }
-        if (packSize != null && delimiterRaw != null) {
-            issues += warning(language, "同时配置时 packSize 优先", "packSize takes precedence when both framing options are set", "両方を指定した場合は packSize が優先されます")
+        if (packSizeRaw != null && delimiterRaw != null) {
+            issues += error(language, "packSize 和 delimiter 只能配置一个", "Configure exactly one of packSize and delimiter", "packSize と delimiter はどちらか一方だけを指定してください")
         }
 
         val delimiter = when {
@@ -86,16 +95,11 @@ object ConfigValidator {
             issues += error(language, "delimiter 为空或格式无效", "delimiter is empty or invalid", "delimiter が空、または形式が無効です")
         }
 
-        // 同时兼容推荐的 rules 数组和早期版本的 replies 对象写法。
-        val rules = when {
-            config.hasPath("rules") -> config.getConfigList("rules").map { rule ->
+        val rules = if (config.hasPath("rules")) {
+            config.getConfigList("rules").map { rule ->
                 rule.getString("request") to rule.getString("response")
             }
-            config.hasPath("replies") -> config.getConfig("replies").entrySet().map { entry ->
-                entry.key to entry.value.unwrapped().toString()
-            }
-            else -> emptyList()
-        }
+        } else emptyList()
         if (rules.isEmpty()) {
             issues += error(language, "至少需要一条响应规则", "At least one response rule is required", "応答ルールを 1 件以上設定してください")
             return issues
@@ -144,11 +148,14 @@ object ConfigValidator {
             return listOf(error(language, "缺少 gateway.endpoints", "gateway.endpoints is required", "gateway.endpoints が必要です"))
         }
         val endpoints = config.getConfigList("endpoints")
-        if (endpoints.isEmpty()) {
-            issues += error(language, "endpoints 不能为空", "endpoints cannot be empty", "endpoints を空にすることはできません")
+        if (endpoints.size < 2) {
+            issues += error(language, "串口桥接至少需要两个端点", "A serial bridge requires at least two endpoints", "シリアルブリッジには 2 つ以上の端点が必要です")
         }
         endpoints.forEachIndexed { index, endpoint ->
-            validateEndpoint(endpoint, language, "endpoints[$index]", required = true, issues)
+            validateEndpoint(endpoint, language, "endpoints[$index]", issues)
+            if (endpoint.optionalString("id").isNullOrBlank()) {
+                issues += error(language, "endpoints[$index].id 缺失", "endpoints[$index].id is required", "endpoints[$index].id が必要です")
+            }
         }
 
         // 路由通过逻辑 id 关联端点，因此 id 与物理串口都必须在同一配置内唯一。
@@ -160,14 +167,29 @@ object ConfigValidator {
         ports.groupBy { it }.filterValues { it.size > 1 }.keys.forEach { port ->
             issues += error(language, "串口重复：$port", "Duplicate serial port: $port", "シリアルポートが重複しています：$port")
         }
+        config.optionalConfig("highlight")?.let {
+            validateHighlight(it, language, "gateway.highlight", issues)
+        }
 
-        if (config.hasPath("routes")) {
+        if (!config.hasPath("routes")) {
+            issues += error(language, "缺少 gateway.routes", "gateway.routes is required", "gateway.routes が必要です")
+        } else {
             // 路由引用在加载前解析，避免运行中才发现目标不存在或形成无意义的自转发。
             val idSet = ids.toSet()
-            config.getConfigList("routes").forEachIndexed { index, route ->
+            val routeConfigs = config.getConfigList("routes")
+            if (routeConfigs.isEmpty()) {
+                issues += error(language, "routes 不能为空", "routes cannot be empty", "routes を空にすることはできません")
+            }
+            var hasEnabledRoute = false
+            routeConfigs.forEachIndexed { index, route ->
                 val name = route.optionalString("name") ?: "route${index + 1}"
                 val sources = route.optionalStringList("sources")
                 val targets = route.optionalStringList("targets")
+                val enabled = route.optionalBoolean("enabled")
+                if (route.hasPath("enabled") && enabled == null) {
+                    issues += error(language, "$name 的 enabled 必须是布尔值", "$name enabled must be a boolean", "$name の enabled は真偽値で指定してください")
+                }
+                if (enabled != false) hasEnabledRoute = true
                 if (sources.isEmpty()) issues += error(language, "$name 的 sources 不能为空", "$name sources cannot be empty", "$name の sources を空にすることはできません")
                 if (targets.isEmpty()) issues += error(language, "$name 的 targets 不能为空", "$name targets cannot be empty", "$name の targets を空にすることはできません")
                 (sources - idSet).forEach { id -> issues += error(language, "$name 引用了不存在的来源：$id", "$name references unknown source: $id", "$name が存在しない source を参照しています：$id") }
@@ -175,6 +197,9 @@ object ConfigValidator {
                 sources.intersect(targets.toSet()).forEach { id ->
                     issues += warning(language, "$name 会把 $id 转发给自身，该目标会被忽略", "$name routes $id to itself; that target will be ignored", "$name は $id 自身へ転送します。この対象は無視されます")
                 }
+            }
+            if (routeConfigs.isNotEmpty() && !hasEnabledRoute) {
+                issues += error(language, "至少需要一条启用的路由", "At least one route must be enabled", "有効なルートを 1 件以上指定してください")
             }
         }
         return issues
@@ -184,15 +209,23 @@ object ConfigValidator {
         endpoint: Config?,
         language: Language,
         path: String,
-        required: Boolean,
         issues: MutableList<ConfigIssue>
     ) {
         if (endpoint == null) {
-            if (required) issues += error(language, "$path 缺失", "$path is missing", "$path がありません")
-            else issues += warning(language, "$path 未声明，将沿用页面参数", "$path is not declared; current page settings will be used", "$path が未定義のため、現在のページ設定を使用します")
+            issues += error(language, "$path 缺失", "$path is missing", "$path がありません")
             return
         }
-        if (endpoint.optionalString("port").isNullOrBlank()) issues += warning(language, "$path.port 为空", "$path.port is empty", "$path.port が空です")
+        if (endpoint.optionalString("port").isNullOrBlank()) {
+            issues += error(language, "$path.port 缺失", "$path.port is required", "$path.port が必要です")
+        }
+        if (endpoint.hasPath("autoOpen")) {
+            issues += error(
+                language,
+                "$path.autoOpen 已不受支持，请删除并在加载后点击运行",
+                "$path.autoOpen is not supported; remove it and click Run after loading",
+                "$path.autoOpen はサポートされていません。削除し、読み込み後に実行をクリックしてください"
+            )
+        }
         val baudRate = endpoint.optionalInt("baudRate")
         if (baudRate == null || baudRate <= 0) issues += error(language, "$path.baudRate 缺失或无效", "$path.baudRate is missing or invalid", "$path.baudRate がないか無効です")
         endpoint.optionalInt("dataBits")?.let { value ->
@@ -206,6 +239,24 @@ object ConfigValidator {
         }
         endpoint.optionalString("flowControl")?.lowercase()?.let { value ->
             if (value !in setOf("none", "rts/cts", "rts_cts", "dsr/dtr", "dsr_dtr", "xon/xoff", "xon_xoff")) issues += error(language, "$path.flowControl 无效：$value", "$path.flowControl is invalid: $value", "$path.flowControl が無効です：$value")
+        }
+    }
+
+    private fun validateHighlight(
+        highlight: Config,
+        language: Language,
+        path: String,
+        issues: MutableList<ConfigIssue>
+    ) {
+        listOf("enabled", "ignoreCase").forEach { field ->
+            if (highlight.hasPath(field) && highlight.optionalBoolean(field) == null) {
+                issues += error(
+                    language,
+                    "$path.$field 必须是布尔值",
+                    "$path.$field must be a boolean",
+                    "$path.$field は真偽値で指定してください"
+                )
+            }
         }
     }
 
@@ -226,9 +277,30 @@ object ConfigValidator {
         Language.JA -> ja
     }
 
+    private fun unsupportedFileResult(file: File, language: Language): ConfigValidationResult? {
+        if (file.extension.equals("conf", ignoreCase = true) || file.extension.equals("hocon", ignoreCase = true)) {
+            return null
+        }
+        return ConfigValidationResult(
+            null,
+            listOf(
+                error(
+                    language,
+                    "仅支持 .conf 或 .hocon 配置文件",
+                    "Only .conf and .hocon configuration files are supported",
+                    ".conf または .hocon 設定ファイルのみ使用できます"
+                )
+            )
+        )
+    }
+
     private fun Config.optionalConfig(path: String): Config? = if (hasPath(path)) getConfig(path) else null
     private fun Config.optionalString(path: String): String? = if (hasPath(path)) getValue(path).unwrapped().toString() else null
     private fun Config.optionalInt(path: String): Int? = optionalString(path)?.toIntOrNull()
+    private fun Config.optionalBoolean(path: String): Boolean? {
+        if (!hasPath(path)) return null
+        return runCatching { getBoolean(path) }.getOrNull()
+    }
     private fun Config.optionalStringList(path: String): List<String> {
         if (!hasPath(path)) return emptyList()
         // HOCON 标准数组和逗号/分号分隔的简写都接受，便于手工编辑配置。

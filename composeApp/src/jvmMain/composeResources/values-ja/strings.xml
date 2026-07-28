@@ -5,8 +5,10 @@
     <string name="section_gateway">シリアルブリッジ</string>
     <string name="empty_create_page">上の + でページを作成</string>
     <string name="empty_log">ログはまだありません。ポートを開いてデータを待機してください。</string>
+    <string name="empty_gateway_log">送信記録はまだありません。設定を読み込み、ブリッジを実行してください。</string>
     <string name="send_input_hint">送信するテキストまたはHEXデータを入力</string>
 
+    <string name="panel_controls">コントロール</string>
     <string name="panel_connection">接続と通信設定</string>
     <string name="panel_actions">基本操作</string>
     <string name="panel_quick_send">クイック送信</string>
@@ -15,6 +17,8 @@
     <string name="panel_log">ログフィルター</string>
     <string name="panel_send_history">送信履歴</string>
     <string name="panel_protocol_tools">プロトコルツール</string>
+    <string name="panel_receive_display">受信表示</string>
+    <string name="panel_line_control">回線制御</string>
     <string name="panel_config">設定ファイル</string>
     <string name="panel_simulator">シミュレーター状態</string>
     <string name="panel_route">転送ルール</string>
@@ -27,6 +31,12 @@
     <string name="label_parity">パリティ</string>
     <string name="label_flow_control">フロー制御</string>
     <string name="label_advanced_serial_parameters">フレーム設定</string>
+    <string name="label_receive_mode">受信フレーム</string>
+    <string name="label_receive_window">集約時間</string>
+    <string name="label_receive_delimiter">受信区切り</string>
+    <string name="label_receive_frame_size">受信フレーム長</string>
+    <string name="label_line_ending">送信行末</string>
+    <string name="label_reconnect_interval">再接続間隔</string>
     <string name="label_interval">送信間隔</string>
     <string name="label_ms">ミリ秒</string>
     <string name="label_tx">送信数</string>
@@ -47,8 +57,12 @@
     <string name="btn_analog_reply">デバイス模擬</string>
     <string name="btn_load_config">設定を読み込む</string>
     <string name="btn_reload_config">設定を再読み込み</string>
+    <string name="btn_run">実行</string>
+    <string name="btn_stop">停止</string>
     <string name="btn_clear_log">ログクリア</string>
     <string name="btn_clear_counters">カウントクリア</string>
+    <string name="btn_open_all">すべて開く</string>
+    <string name="btn_close_all">すべて閉じる</string>
     <string name="btn_open">開く</string>
     <string name="btn_close">閉じる</string>
     <string name="btn_format_hex">整形</string>
@@ -66,6 +80,9 @@
     <string name="opt_loop_send">繰り返し送信</string>
     <string name="opt_save_send">送信保存</string>
     <string name="opt_save_receive">受信保存</string>
+    <string name="opt_enter_to_send">Enter で送信</string>
+    <string name="opt_clear_after_send">送信後にクリア</string>
+    <string name="opt_auto_reconnect">自動再接続</string>
     <string name="opt_enable">有効</string>
     <string name="opt_ignore_case">大文字小文字を無視</string>
 
@@ -82,10 +99,16 @@
     <string name="label_delimiter">区切り HEX</string>
     <string name="frame_mode_fixed">固定長</string>
     <string name="frame_mode_delimiter">区切り文字</string>
+    <string name="receive_mode_time_window">時間ウィンドウ</string>
+    <string name="receive_mode_raw_chunks">ドライバーブロック</string>
+    <string name="receive_mode_delimiter">区切りフレーム</string>
+    <string name="receive_mode_fixed_length">固定長フレーム</string>
+    <string name="line_ending_none">追加しない</string>
     <string name="checksum_result">結果：%1$s</string>
     <string name="checksum_unavailable">有効なデータを入力してください</string>
     <string name="frame_result">完全なフレーム %1$d 件 · 残り %2$d バイト</string>
     <string name="frame_unavailable">フレーム設定または入力データが無効です</string>
+    <string name="invalid_hex_input">HEX 入力に無効または不完全なバイトがあります</string>
     <string name="search_log">ログ検索</string>
     <string name="keyword_separator_hint">カンマ、セミコロン、改行で区切ります</string>
     <string name="opt_only_matches">一致のみ</string>
@@ -101,6 +124,9 @@
     <string name="gateway_config_dialog_title">シリアルブリッジ設定を選択</string>
     <string name="status_connected">接続済み</string>
     <string name="status_disconnected">未接続</string>
+    <string name="status_connecting">接続中</string>
+    <string name="status_reconnecting">再接続待機中</string>
+    <string name="status_error">接続エラー</string>
     <string name="error_loop_interval">送信間隔は1～86400000ミリ秒で指定してください</string>
     <string name="connection_summary">%1$d baud · %2$s · フロー制御：%3$s</string>
     <string name="option_none">なし</string>
@@ -123,12 +149,16 @@
     <string name="action_copy_row">行全体をコピー</string>
     <string name="action_copy_content">内容をコピー</string>
     <string name="action_clear_logs">ログを消去</string>
+    <string name="action_show_controls">操作パネルを表示</string>
+    <string name="action_hide_controls">操作パネルを非表示</string>
+    <string name="send_shortcut_hint">Ctrl+Enter で送信 · Shift+Enter で改行</string>
     <string name="confirm_clear_logs_title">ログを消去しますか？</string>
     <string name="confirm_clear_logs_message">このページのログを消去します。この操作は取り消せません。</string>
     <string name="export_logs_dialog_title">シリアルログを出力</string>
     <string name="logs_copied">表示中のログをコピーしました</string>
     <string name="logs_exported">ログを出力しました：%1$s</string>
     <string name="operation_failed">操作に失敗しました：%1$s</string>
+    <string name="byte_count">送信予定 %1$d バイト</string>
     <string name="config_valid">設定の検証に成功しました</string>
 
     <string name="gateway_mode_one_to_one">1対1</string>

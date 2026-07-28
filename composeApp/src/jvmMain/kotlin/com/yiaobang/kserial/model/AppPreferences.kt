@@ -19,6 +19,41 @@ class AppPreferences {
     /** HEX 发送启用开关 */
     var hexSend by mutableStateOf(false)
 
+    /** 接收显示的聚合/分帧方式，默认按短时间窗口合并驱动碎片。 */
+    var receiveDisplayMode by mutableStateOf(ReceiveDisplayMode.TIME_WINDOW)
+
+    /** 时间窗口聚合毫秒数。 */
+    var receiveWindowMsText by mutableStateOf("25")
+
+    val receiveWindowMs: Long
+        get() = receiveWindowMsText.toLongOrNull()?.coerceIn(5L, 1_000L) ?: 25L
+
+    /** 分隔符分帧使用可见转义文本，例如 \r\n。 */
+    var receiveDelimiterText by mutableStateOf("\\r\\n")
+
+    /** 定长分帧字节数。 */
+    var receiveFrameSizeText by mutableStateOf("8")
+
+    val receiveFrameSize: Int
+        get() = receiveFrameSizeText.toIntOrNull()?.coerceIn(1, 4096) ?: 8
+
+    /** ASCII 发送自动追加的行尾。 */
+    var sendLineEnding by mutableStateOf(SendLineEnding.NONE)
+
+    /** Enter 直接发送；关闭时仍可使用 Ctrl+Enter，Shift+Enter 始终换行。 */
+    var enterToSend by mutableStateOf(false)
+
+    /** 普通手动发送被接受后清空输入区。 */
+    var clearAfterSend by mutableStateOf(false)
+
+    /** 非人为断开后是否等待端口恢复并自动重连。 */
+    var autoReconnect by mutableStateOf(false)
+
+    var reconnectIntervalText by mutableStateOf("2000")
+
+    val reconnectIntervalMs: Long
+        get() = reconnectIntervalText.toLongOrNull()?.coerceIn(250L, 60_000L) ?: 2_000L
+
     /** 循环发送总开关 */
     var loopSendEnabled by mutableStateOf(false)
 

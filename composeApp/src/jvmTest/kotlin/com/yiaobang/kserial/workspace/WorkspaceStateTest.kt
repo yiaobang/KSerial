@@ -31,8 +31,8 @@ class WorkspaceStateTest {
         val simulatorId = workspace.openTab(WorkspaceSection.Simulator)
         val gatewayId = workspace.openTab(WorkspaceSection.Gateway)
         assertEquals("串口终端 2", workspace.tab(secondBasicId)?.title)
-        assertNotNull(workspace.tab(simulatorId)?.serialViewModel)
-        assertNotNull(workspace.tab(gatewayId)?.gatewayViewModel)
+        assertNotNull(workspace.tab(simulatorId)?.content as? SimulatorTabContent)
+        assertNotNull(workspace.tab(gatewayId)?.content as? GatewayTabContent)
 
         workspace.selectSection(workspace.mainHost.id, WorkspaceSection.Simulator)
         workspace.selectTab(workspace.mainHost.id, simulatorId)
@@ -55,12 +55,32 @@ class WorkspaceStateTest {
     }
 
     @Test
+    fun selectingAnEmptySectionCreatesAndReusesOneDefaultTab() = withWorkspace { workspace ->
+        workspace.selectSection(workspace.mainHost.id, WorkspaceSection.Simulator)
+        val simulatorTab = assertNotNull(workspace.activeTab(workspace.mainHost))
+        assertEquals(WorkspaceSection.Simulator, simulatorTab.section)
+        assertEquals(1, workspace.tabIdsFor(workspace.mainHost).size)
+
+        workspace.selectSection(workspace.mainHost.id, WorkspaceSection.Basic)
+        workspace.selectSection(workspace.mainHost.id, WorkspaceSection.Simulator)
+
+        assertEquals(simulatorTab.id, workspace.activeTab(workspace.mainHost)?.id)
+        assertEquals(1, workspace.tabIdsFor(workspace.mainHost).size)
+
+        workspace.selectSection(workspace.mainHost.id, WorkspaceSection.Gateway)
+        assertEquals(WorkspaceSection.Gateway, workspace.activeTab(workspace.mainHost)?.section)
+        assertEquals(1, workspace.tabIdsFor(workspace.mainHost).size)
+    }
+
+    @Test
     fun propagatesAppearanceAndPersistsGlobalState() = withWorkspace { workspace ->
-        val basic = assertNotNull(workspace.activeTab(workspace.mainHost)?.serialViewModel)
+        val basic = assertNotNull(
+            (workspace.activeTab(workspace.mainHost)?.content as? BasicTabContent)?.viewModel
+        )
         val simulatorId = workspace.openTab(WorkspaceSection.Simulator)
         val gatewayId = workspace.openTab(WorkspaceSection.Gateway)
-        val simulator = assertNotNull(workspace.tab(simulatorId)?.serialViewModel)
-        val gateway = assertNotNull(workspace.tab(gatewayId)?.gatewayViewModel)
+        val simulator = assertNotNull((workspace.tab(simulatorId)?.content as? SimulatorTabContent)?.viewModel)
+        val gateway = assertNotNull((workspace.tab(gatewayId)?.content as? GatewayTabContent)?.viewModel)
         val initialLanguage = workspace.prefs.currentLanguage
 
         workspace.switchTheme()

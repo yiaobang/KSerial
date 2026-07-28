@@ -14,6 +14,8 @@ object PortMonitor {
     // 内部持有的可观察状态流，存储当前所有串口名称
     private val _availablePorts = MutableStateFlow<List<String>>(emptyList())
     val availablePorts = _availablePorts.asStateFlow()
+    private val _portDetails = MutableStateFlow<List<SerialPortInfo>>(emptyList())
+    val portDetails = _portDetails.asStateFlow()
 
     // 协程作用域，专门用于串口扫描任务
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -28,13 +30,7 @@ object PortMonitor {
         if (scanJob != null) return
         val job = scope.launch {
             while (isActive) {
-                runCatching {
-                    SerialPort.getCommPorts().map { it.systemPortName }
-                }.onSuccess { ports ->
-                    if (ports != _availablePorts.value) {
-                        _availablePorts.value = ports
-                    }
-                }
+                refreshNow()
                 delay(2000.milliseconds)
             }
         }
@@ -53,5 +49,24 @@ object PortMonitor {
     fun stop() {
         scanJob?.cancel()
         scanJob = null
+    }
+
+    /** UI 可主动刷新；周期扫描仍作为热插拔兜底。 */
+    fun refreshNow() {
+        runCatching {
+            SerialPort.getCommPorts().map { port ->
+                SerialPortInfo(
+                    systemName = port.systemPortName,
+                    descriptiveName = port.descriptivePortName.orEmpty(),
+                    description = port.portDescription.orEmpty(),
+                    vendorId = port.vendorID.takeIf { it >= 0 },
+                    productId = port.productID.takeIf { it >= 0 }
+                )
+            }
+        }.onSuccess { details ->
+            _portDetails.value = details
+            val names = details.map(SerialPortInfo::systemName)
+            if (names != _availablePorts.value) _availablePorts.value = names
+        }
     }
 }

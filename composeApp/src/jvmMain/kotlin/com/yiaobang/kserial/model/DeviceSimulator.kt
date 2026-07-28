@@ -2,11 +2,10 @@ package com.yiaobang.kserial.model
 
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
-import com.yiaobang.kserial.serial.SerialComm
+import com.yiaobang.kserial.serial.SerialTransport
 import com.yiaobang.kserial.utils.hexToByteArray
 import com.yiaobang.kserial.utils.toHexString
 import com.yiaobang.kserial.utils.toUtf8ByteArray
-import kotlinx.serialization.json.*
 import java.io.File
 
 /**
@@ -19,7 +18,7 @@ abstract class DeviceSimulator(protected val replies: Map<String, ByteArray>) : 
     protected val dataBuffer = CircularArray(4096)
 
     /** 绑定的串口通信实例，用于自动回复 */
-    var serialComm: SerialComm? = null
+    var serialComm: SerialTransport? = null
 
     /** 自动回复完成回调，用于同步页面日志、计数和数据落盘状态 */
     var onReply: ((data: ByteArray, written: Int) -> Unit)? = null
@@ -37,34 +36,18 @@ abstract class DeviceSimulator(protected val replies: Map<String, ByteArray>) : 
         dataBuffer.clear()
     }
 
-    /**
-     * 静态工厂方法：根据 JSON/HOCON 配置文件创建对应的模拟器策略。
-     */
+    /** 静态工厂方法：根据已经通过校验的 HOCON 配置创建模拟器策略。 */
     companion object {
         fun createDeviceSimulator(file: File): DeviceSimulator? {
+            if (!file.extension.equals("conf", ignoreCase = true) &&
+                !file.extension.equals("hocon", ignoreCase = true)
+            ) return null
             return try {
-                if (file.extension.equals("conf", ignoreCase = true) || file.extension.equals("hocon", ignoreCase = true)) {
-                    createFromConfig(file)
-                } else {
-                    createFromJson(file)
-                }
+                createFromConfig(file)
             } catch (e: Exception) {
                 e.printStackTrace()
                 null
             }
-        }
-
-        private fun createFromJson(file: File): DeviceSimulator? {
-            val json = Json.parseToJsonElement(file.readText()).jsonObject
-
-            val encode = json["encode"]?.jsonPrimitive?.content ?: "UTF8"
-            val delimiterStr = json["delimiter"]?.jsonPrimitive?.content ?: ""
-            val packSizeStr = json["packSize"]?.jsonPrimitive?.content ?: ""
-            val rawMaps = json
-                .filterKeys { it !in listOf("encode", "delimiter", "packSize") }
-                .mapValues { it.value.jsonPrimitive.content }
-
-            return createSimulator(encode, delimiterStr, packSizeStr, rawMaps)
         }
 
         private fun createFromConfig(file: File): DeviceSimulator? {
@@ -73,15 +56,11 @@ abstract class DeviceSimulator(protected val replies: Map<String, ByteArray>) : 
             val encode = config.optionalString("encode") ?: "UTF8"
             val delimiterStr = config.optionalString("delimiter") ?: ""
             val packSizeStr = config.optionalString("packSize") ?: ""
-            val rawMaps = when {
-                config.hasPath("rules") -> config.getConfigList("rules").associate { rule ->
+            val rawMaps = if (config.hasPath("rules")) {
+                config.getConfigList("rules").associate { rule ->
                     rule.getString("request") to rule.getString("response")
                 }
-                config.hasPath("replies") -> config.getConfig("replies").entrySet().associate { entry ->
-                    entry.key to entry.value.unwrapped().toString()
-                }
-                else -> emptyMap()
-            }
+            } else emptyMap()
 
             return createSimulator(encode, delimiterStr, packSizeStr, rawMaps)
         }
