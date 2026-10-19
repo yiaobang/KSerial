@@ -5,6 +5,8 @@ import com.yiaobang.kserial.model.SendLineEnding
 import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
 import com.yiaobang.kserial.utils.ChecksumAlgorithm
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.isActive
 import java.nio.file.Files
 import kotlin.test.AfterTest
 import kotlin.test.Test
@@ -132,6 +134,14 @@ class SerialViewModelTest {
         assertEquals(0L, viewModel.rxCount)
         viewModel.clearLogs()
         assertTrue(viewModel.logs.isEmpty())
+    }
+
+    @Test
+    fun onClearedCancelsViewModelScope() {
+        val viewModel = SerialViewModel(autoConnectFirstPort = false, syncOnConfigChange = false)
+        assertTrue(viewModel.viewModelScope.isActive)
+        viewModel.onCleared()
+        assertFalse(viewModel.viewModelScope.isActive)
     }
 
     private fun withViewModel(block: (SerialViewModel) -> Unit) {

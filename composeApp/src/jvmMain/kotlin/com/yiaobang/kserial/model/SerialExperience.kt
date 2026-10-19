@@ -45,7 +45,9 @@ class ReceiveFrameAssembler(
 ) {
     private var signature: String = ""
     private var remainder = byteArrayOf()
+    private var cachedDelimiter: ByteArray = byteArrayOf()
 
+    @Synchronized
     fun append(
         chunks: List<ByteArray>,
         mode: ReceiveDisplayMode,
@@ -56,6 +58,11 @@ class ReceiveFrameAssembler(
         if (signature != currentSignature) {
             signature = currentSignature
             remainder = byteArrayOf()
+            cachedDelimiter = if (mode == ReceiveDisplayMode.DELIMITER) {
+                TextEscapeParser.decodeToByteArray(delimiterText)
+            } else {
+                byteArrayOf()
+            }
         }
         if (chunks.isEmpty()) return ReceiveAssemblyResult(emptyList())
 
@@ -71,7 +78,7 @@ class ReceiveFrameAssembler(
         val combined = remainder + incoming
         val parsed = when (mode) {
             ReceiveDisplayMode.DELIMITER -> {
-                val delimiter = TextEscapeParser.decodeToByteArray(delimiterText)
+                val delimiter = cachedDelimiter
                 if (delimiter.isEmpty()) return ReceiveAssemblyResult(listOf(incoming), invalidConfiguration = true)
                 FrameParser.delimiter(combined, delimiter)
             }
@@ -86,10 +93,12 @@ class ReceiveFrameAssembler(
         return ReceiveAssemblyResult(parsed.frames, droppedRemainderBytes = overflow.toLong())
     }
 
+    @Synchronized
     fun reset(): ByteArray {
         val pending = remainder
         remainder = byteArrayOf()
         signature = ""
+        cachedDelimiter = byteArrayOf()
         return pending
     }
 

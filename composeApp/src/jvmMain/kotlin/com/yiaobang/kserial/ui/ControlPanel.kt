@@ -350,6 +350,7 @@ private fun ParameterRow(
 private fun ActionButtonGrid(vm: SerialViewModel, onClearSend: () -> Unit) {
     val colors = LocalAppColors.current
     val s = LocalAppStrings.current
+    val hasLogs by remember(vm) { derivedStateOf { vm.logs.isNotEmpty() } }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton(
@@ -358,7 +359,7 @@ private fun ActionButtonGrid(vm: SerialViewModel, onClearSend: () -> Unit) {
                 modifier = Modifier.weight(1f),
                 enabled = vm.isConnectionActive || vm.config.selectedPort.isNotBlank()
             ) { vm.togglePort() }
-            ActionButton(s.btnClearReceive, colors.surface, Modifier.weight(1f), enabled = vm.logs.isNotEmpty()) { vm.clearLogs() }
+            ActionButton(s.btnClearReceive, colors.surface, Modifier.weight(1f), enabled = hasLogs) { vm.clearLogs() }
         }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             ActionButton(
@@ -596,7 +597,7 @@ fun ActionButton(
     onClick: () -> Unit
 ) {
     val colors = LocalAppColors.current
-    val isMainColor = color == colors.primary || color == colors.success
+    val isMainColor = color == colors.primary || color == colors.success || color == colors.error
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -747,7 +748,12 @@ private fun OptionItem(
     enabled: Boolean = true,
     onChecked: (Boolean) -> Unit
 ) {
-    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .clickable(enabled = enabled) { onChecked(!checked) },
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Checkbox(checked = checked, enabled = enabled, onCheckedChange = onChecked)
         Text(
             label,

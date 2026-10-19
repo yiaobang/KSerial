@@ -19,4 +19,16 @@ class KeywordHighlightConfigTest {
 
         assertEquals("ERROR, OK", config.keywordsText)
     }
+
+    @Test
+    fun parseKeywordsRespectsCaseSensitivity() {
+        val keywordsCaseSensitive = KeywordHighlightConfig.parseKeywords("ERROR, error, Error", ignoreCase = false)
+        assertEquals(listOf("ERROR", "error", "Error"), keywordsCaseSensitive)
+
+        val config = KeywordHighlightConfig().apply {
+            ignoreCase = false
+            keywordsText = "ERROR, error"
+        }
+        assertEquals(listOf("ERROR", "error"), config.keywords)
+    }
 }

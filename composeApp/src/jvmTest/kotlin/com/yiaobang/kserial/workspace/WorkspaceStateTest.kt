@@ -99,6 +99,17 @@ class WorkspaceStateTest {
         workspace.saveSettings().getOrThrow()
     }
 
+    @Test
+    fun localizesTabTitlesBasedOnLanguage() = withWorkspace { workspace ->
+        workspace.prefs.currentLanguage = Language.EN
+        val tabId = workspace.openTab(WorkspaceSection.Basic)
+        assertEquals("Terminal 2", workspace.tab(tabId)?.title)
+
+        workspace.prefs.currentLanguage = Language.JA
+        val jaTabId = workspace.openTab(WorkspaceSection.Simulator)
+        assertEquals("シミュレータ", workspace.tab(jaTabId)?.title)
+    }
+
     private fun withWorkspace(block: (WorkspaceState) -> Unit) {
         val directory = createTempDirectory("kserial-workspace-test")
         val path = directory.resolve("settings.conf")

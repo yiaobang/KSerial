@@ -11,7 +11,21 @@ import com.yiaobang.kserial.i18n.Language
 enum class WorkspaceSection(val fallbackTitle: String) {
     Basic("串口终端"),
     Simulator("设备模拟"),
-    Gateway("串口桥接")
+    Gateway("串口桥接");
+
+    fun localizedTitle(language: Language): String = when (language) {
+        Language.ZH -> fallbackTitle
+        Language.EN -> when (this) {
+            Basic -> "Terminal"
+            Simulator -> "Simulator"
+            Gateway -> "Gateway"
+        }
+        Language.JA -> when (this) {
+            Basic -> "ターミナル"
+            Simulator -> "シミュレータ"
+            Gateway -> "ゲートウェイ"
+        }
+    }
 }
 
 /**

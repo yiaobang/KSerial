@@ -17,6 +17,11 @@ class SerialPortLeaseRegistryTest {
         assertTrue(SerialPortLeaseRegistry.acquire("COM7", "owner-a"))
         assertFalse(SerialPortLeaseRegistry.acquire("com7", "owner-b"))
         assertEquals("owner-a", SerialPortLeaseRegistry.ownerOf("CoM7"))
+
+        // Windows extended port names (e.g. \\.\COM10) should resolve to the same key as COM10
+        assertTrue(SerialPortLeaseRegistry.acquire("""\\.\COM10""", "owner-c"))
+        assertFalse(SerialPortLeaseRegistry.acquire("com10", "owner-d"))
+        assertEquals("owner-c", SerialPortLeaseRegistry.ownerOf("COM10"))
     }
 
     @Test

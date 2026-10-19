@@ -45,11 +45,17 @@ fun AppStatusBar(vm: SerialViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    val indicatorColor = when (vm.connectionState) {
+                        SerialConnectionState.CONNECTED -> colors.success
+                        SerialConnectionState.CONNECTING, SerialConnectionState.RECONNECTING -> colors.primary
+                        SerialConnectionState.ERROR -> colors.error
+                        SerialConnectionState.DISCONNECTED -> colors.onSurface.copy(alpha = 0.28f)
+                    }
                     Box(
                         modifier = Modifier
                             .size(7.dp)
                             .clip(CircleShape)
-                            .background(if (vm.isPortOpen) colors.success else colors.onSurface.copy(alpha = 0.28f))
+                            .background(indicatorColor)
                     )
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(

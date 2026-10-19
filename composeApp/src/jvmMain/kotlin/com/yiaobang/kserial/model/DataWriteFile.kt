@@ -3,11 +3,14 @@ package com.yiaobang.kserial.model
 import com.yiaobang.kserial.utils.toHexString
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import java.io.BufferedOutputStream
 import java.io.File
-import java.nio.file.Files
-import java.nio.file.StandardOpenOption
 import java.text.SimpleDateFormat
 import java.util.*
+
+fun sanitizePortName(name: String): String {
+    return name.replace(Regex("""[\\/:*?"<>|]"""), "_")
+}
 
 /**
  * 串口数据持久化记录类
@@ -52,23 +55,36 @@ class DataWriteFile(
     }
 
     private suspend fun drain(queue: Channel<ByteArray>, file: File) {
-        for (bytes in queue) {
-            // 数据记录属于辅助能力；单次磁盘写入失败不能中断串口通信或后续记录。
-            runCatching {
-                Files.writeString(
-                    file.toPath(),
-                    bytes.toHexString() + " ",
-                    StandardOpenOption.CREATE,
-                    StandardOpenOption.APPEND
-                )
+        val stream = runCatching {
+            file.parentFile?.mkdirs()
+            file.outputStream().buffered()
+        }.getOrNull() ?: return
+
+        try {
+            stream.use { output ->
+                for (bytes in queue) {
+                    // 数据记录属于辅助能力；单次磁盘写入失败不能中断串口通信或后续记录。
+                    runCatching {
+                        output.write((bytes.toHexString() + " ").toByteArray(Charsets.UTF_8))
+                    }
+                }
+                output.flush()
             }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Throwable) {
+            // 数据记录属于辅助能力；单次磁盘写入失败不能中断串口通信或后续记录。
         }
     }
 
     private fun createSessionFile(extension: String): File {
         if (!dataDir.exists()) dataDir.mkdirs()
-        return File(dataDir, "$serialPortName-$timeStamp-$sessionId.$extension").also {
+        return File(dataDir, "${sanitizePortName(serialPortName)}-$timeStamp-$sessionId.$extension").also {
             if (it.exists()) it.delete()
         }
+    }
+
+    companion object {
+        fun sanitizePortName(name: String): String = com.yiaobang.kserial.model.sanitizePortName(name)
     }
 }

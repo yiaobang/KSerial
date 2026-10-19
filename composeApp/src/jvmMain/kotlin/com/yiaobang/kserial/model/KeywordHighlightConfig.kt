@@ -1,5 +1,6 @@
 package com.yiaobang.kserial.model
 
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -10,25 +11,25 @@ class KeywordHighlightConfig {
     var ignoreCase by mutableStateOf(true)
     var keywordsText by mutableStateOf("")
 
-    val keywords: List<String>
-        get() = parseKeywords(keywordsText)
+    val keywords: List<String> by derivedStateOf {
+        parseKeywords(keywordsText, ignoreCase)
+    }
 
     fun setKeywords(keywords: List<String>) {
-        // 以不区分大小写的方式去重，避免同一关键词产生重复高亮范围。
         keywordsText = keywords
             .map { it.trim() }
             .filter { it.isNotEmpty() }
-            .distinctBy { it.lowercase() }
+            .let { if (ignoreCase) it.distinctBy(String::lowercase) else it.distinct() }
             .joinToString(", ")
     }
 
     companion object {
-        fun parseKeywords(text: String): List<String> {
-            return text
+        fun parseKeywords(text: String, ignoreCase: Boolean = true): List<String> {
+            val list = text
                 .split(',', ';', '\n', '\r')
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
-                .distinctBy { it.lowercase() }
+            return if (ignoreCase) list.distinctBy { it.lowercase() } else list.distinct()
         }
     }
 }
