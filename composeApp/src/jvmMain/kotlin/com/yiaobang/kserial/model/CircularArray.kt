@@ -7,6 +7,10 @@ package com.yiaobang.kserial.model
  * @param capacity 缓冲区最大容量
  */
 class CircularArray(private val capacity: Int) {
+    init {
+        require(capacity > 0) { "capacity must be positive" }
+    }
+
     private val array = ByteArray(capacity)
     private var front = 0  // 头部指针
     private var rear = -1   // 尾部指针
@@ -33,6 +37,7 @@ class CircularArray(private val capacity: Int) {
         if (elements.size > capacity) {
             throw IllegalArgumentException("数据大小超过了缓冲区容量")
         }
+        if (elements.isEmpty()) return
 
         // 计算需要挪出的空间
         val elementsToDequeue = (size + elements.size - capacity).coerceAtLeast(0)
@@ -40,11 +45,14 @@ class CircularArray(private val capacity: Int) {
             dequeue()
         }
 
-        for (element in elements) {
-            rear = (rear + 1) % capacity
-            array[rear] = element
-            size++
+        val insertStart = (rear + 1) % capacity
+        val firstPart = minOf(elements.size, capacity - insertStart)
+        System.arraycopy(elements, 0, array, insertStart, firstPart)
+        if (firstPart < elements.size) {
+            System.arraycopy(elements, firstPart, array, 0, elements.size - firstPart)
         }
+        rear = (insertStart + elements.size - 1) % capacity
+        size += elements.size
     }
 
     /**
@@ -92,6 +100,7 @@ class CircularArray(private val capacity: Int) {
     /**
      * 返回当前已存储的数据大小
      */
+    @Synchronized
     fun size(): Int = size
 
     /**

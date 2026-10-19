@@ -6,11 +6,14 @@ import com.yiaobang.kserial.serial.PortMonitor
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
 import com.yiaobang.kserial.serial.SerialTransport
 import com.yiaobang.kserial.serial.SerialTransportEvent
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.test.runTest
 import java.nio.file.Files
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class GatewayViewModelTest {
@@ -107,6 +110,19 @@ class GatewayViewModelTest {
             assertEquals(payload.size.toLong(), target.txCount)
         } finally {
             viewModel.onCleared()
+            PortMonitor.stop()
+            SerialPortLeaseRegistry.clear()
+        }
+    }
+
+    @Test
+    fun onClearedCancelsViewModelScope() {
+        val viewModel = GatewayViewModel()
+        try {
+            assertTrue(viewModel.viewModelScope.isActive)
+            viewModel.onCleared()
+            assertFalse(viewModel.viewModelScope.isActive)
+        } finally {
             PortMonitor.stop()
             SerialPortLeaseRegistry.clear()
         }

@@ -35,9 +35,14 @@ object SerialPortLeaseRegistry {
         leases.clear()
     }
 
+    private val WINDOWS_COM_REGEX = Regex("""^(?:\\\\\.[\/\\])?COM\d+$""", RegexOption.IGNORE_CASE)
+
     private fun leaseKey(portName: String): String {
-        // Windows COM 名不区分大小写；其他平台保留原名称以免破坏设备路径。
+        // Windows COM 名不区分大小写，且统一去除 \\.\ 前缀；其他平台保留原名称以免破坏设备路径。
         val trimmed = portName.trim()
-        return if (trimmed.matches(Regex("COM\\d+", RegexOption.IGNORE_CASE))) trimmed.uppercase() else trimmed
+        return if (WINDOWS_COM_REGEX.matches(trimmed)) {
+            val normalized = trimmed.substring(trimmed.lastIndexOfAny(charArrayOf('\\', '/')) + 1)
+            normalized.uppercase()
+        } else trimmed
     }
 }

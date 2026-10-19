@@ -139,6 +139,8 @@ class SerialComm : SerialTransport, SerialPortDataListener {
 
             port.setComPortParameters(baudRate, dataBits, stopBits, parity)
             port.setFlowControl(flowControl)
+            // 配置写超时（1000ms），防止硬件流控开启且对端未拉高 CTS/DSR 时引发驱动层永久阻塞死锁
+            port.setComPortTimeouts(SerialPort.TIMEOUT_NONBLOCKING, 0, 1000)
             if (!port.openPort()) {
                 lastErrorMessage = port.descriptivePortName.takeIf { it.isNotBlank() }?.let { "Unable to open $it" }
                     ?: "Unable to open $portName"

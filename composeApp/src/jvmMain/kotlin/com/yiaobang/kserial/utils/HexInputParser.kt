@@ -17,8 +17,11 @@ data class HexInputResult(
 object HexInputParser {
     fun parse(input: String): HexInputResult {
         val compact = input
-            .replace("0x", "", ignoreCase = true)
-            .filterNot { it.isWhitespace() || it == ',' || it == ';' || it == '_' || it == '-' }
+            .split(Regex("[\\s,;_-]+"))
+            .filter { it.isNotBlank() }
+            .joinToString("") { token ->
+                token.removePrefix("0x").removePrefix("0X")
+            }
 
         if (compact.isBlank()) return HexInputResult(byteArrayOf(), "", null)
 

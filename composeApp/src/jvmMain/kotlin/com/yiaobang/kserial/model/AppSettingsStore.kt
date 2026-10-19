@@ -37,20 +37,25 @@ class AppSettingsStore(
     fun save(settings: PersistedSettings): Result<Path> = runCatching {
         val parent = settingsFile.parent
         if (parent != null) Files.createDirectories(parent)
-        val temporary = settingsFile.resolveSibling("${settingsFile.fileName}.tmp")
-        Files.writeString(temporary, render(settings))
-        // 同目录临时文件 + 原子替换可避免进程中断留下半份配置；文件系统不支持时再普通替换。
-        runCatching {
-            Files.move(
-                temporary,
-                settingsFile,
-                StandardCopyOption.REPLACE_EXISTING,
-                StandardCopyOption.ATOMIC_MOVE
-            )
-        }.getOrElse {
-            Files.move(temporary, settingsFile, StandardCopyOption.REPLACE_EXISTING)
+        val temporary = Files.createTempFile(parent ?: Path.of("."), "${settingsFile.fileName}.", ".tmp")
+        try {
+            Files.writeString(temporary, render(settings))
+            // 同目录临时文件 + 原子替换可避免进程中断留下半份配置；文件系统不支持时再普通替换。
+            runCatching {
+                Files.move(
+                    temporary,
+                    settingsFile,
+                    StandardCopyOption.REPLACE_EXISTING,
+                    StandardCopyOption.ATOMIC_MOVE
+                )
+            }.getOrElse {
+                Files.move(temporary, settingsFile, StandardCopyOption.REPLACE_EXISTING)
+            }
+            settingsFile
+        } catch (t: Throwable) {
+            Files.deleteIfExists(temporary)
+            throw t
         }
-        settingsFile
     }
 
     private fun render(settings: PersistedSettings): String {

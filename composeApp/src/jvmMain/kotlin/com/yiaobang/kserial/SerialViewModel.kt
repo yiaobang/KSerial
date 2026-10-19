@@ -40,6 +40,7 @@ import com.yiaobang.kserial.utils.toHexString
 import com.yiaobang.kserial.utils.toUtf8String
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
@@ -605,6 +606,7 @@ class SerialViewModel(
         logs.clear()
         txCount = 0
         rxCount = 0
+        viewModelScope.cancel()
         super.onCleared()
     }
 

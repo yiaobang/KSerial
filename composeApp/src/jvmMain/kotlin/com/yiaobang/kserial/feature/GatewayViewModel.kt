@@ -26,6 +26,7 @@ import com.yiaobang.kserial.serial.SerialTransport
 import com.yiaobang.kserial.utils.toHexString
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.isActive
@@ -373,6 +374,7 @@ class GatewayViewModel : ViewModel() {
             it.leasedPort = null
         }
         logs.clear()
+        viewModelScope.cancel()
         super.onCleared()
     }
 

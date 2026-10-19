@@ -22,4 +22,12 @@ class HexUtilsTest {
     fun formatsCanonicalHexKey() {
         assertEquals("00FF10", byteArrayOf(0x00, 0xFF.toByte(), 0x10).toHexString())
     }
+
+    @Test
+    fun formatsHexDisplayString() {
+        assertEquals("00 FF 10", byteArrayOf(0x00, 0xFF.toByte(), 0x10).toHexDisplayString())
+        assertEquals("AB", byteArrayOf(0xAB.toByte()).toHexDisplayString())
+        assertEquals("", byteArrayOf().toHexDisplayString())
+        assertEquals("", byteArrayOf().toHexString())
+    }
 }

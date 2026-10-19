@@ -113,7 +113,7 @@ class WorkspaceState(
 
     fun hostTitle(host: WindowHostState): String {
         if (host.id == MAIN_HOST_ID) return "KSerial"
-        val activeTitle = activeTab(host)?.let { tabTitle(it) } ?: host.selectedSection.fallbackTitle
+        val activeTitle = activeTab(host)?.let { tabTitle(it) } ?: host.selectedSection.localizedTitle(prefs.currentLanguage)
         return "KSerial - $activeTitle"
     }
 
@@ -341,7 +341,8 @@ class WorkspaceState(
     }
 
     private fun fallbackTabTitle(section: WorkspaceSection, titleIndex: Int): String {
-        return if (titleIndex == 1) section.fallbackTitle else "${section.fallbackTitle} $titleIndex"
+        val baseTitle = section.localizedTitle(prefs.currentLanguage)
+        return if (titleIndex == 1) baseTitle else "$baseTitle $titleIndex"
     }
 
     private fun disposeTab(tabId: Int) {
