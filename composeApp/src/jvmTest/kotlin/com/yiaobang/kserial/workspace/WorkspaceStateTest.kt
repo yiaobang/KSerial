@@ -23,6 +23,8 @@ class WorkspaceStateTest {
 
     @Test
     fun managesTabsDetachedWindowsAndMerging() = withWorkspace { workspace ->
+        // 固定语言为中文，确保 tab 标题与系统 locale 无关
+        workspace.prefs.currentLanguage = Language.ZH
         val firstBasic = assertNotNull(workspace.activeTab(workspace.mainHost))
         assertEquals(WorkspaceSection.Basic, firstBasic.section)
         assertEquals("KSerial", workspace.hostTitle(workspace.mainHost))

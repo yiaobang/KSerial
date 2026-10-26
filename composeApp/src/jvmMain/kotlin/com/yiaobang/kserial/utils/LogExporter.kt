@@ -30,28 +30,8 @@ object LogExporter {
 
     fun write(logs: List<LogEntry>, format: LogExportFormat, path: Path): Path {
         path.parent?.let { parent -> Files.createDirectories(parent) }
-        path.toFile().bufferedWriter().use { writer ->
-            when (format) {
-                LogExportFormat.TEXT -> {
-                    logs.forEachIndexed { index, log ->
-                        writer.write("[${log.time}] ${log.type.name.padEnd(4)} ${log.content}")
-                        if (index < logs.size - 1) writer.newLine()
-                    }
-                }
-                LogExportFormat.CSV -> {
-                    writer.write("time,type,content")
-                    writer.newLine()
-                    logs.forEachIndexed { index, log ->
-                        writer.write(csv(log.time))
-                        writer.write(",")
-                        writer.write(csv(log.type.name))
-                        writer.write(",")
-                        writer.write(csv(log.content))
-                        if (index < logs.size - 1) writer.newLine()
-                    }
-                }
-            }
-        }
+        // 直接复用 render() 确保磁盘内容与内存渲染完全一致（换行符统一为 \n）
+        Files.writeString(path, render(logs, format))
         return path
     }
 
