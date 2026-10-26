@@ -1,5 +1,16 @@
 package com.yiaobang.kserial
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -608,6 +619,9 @@ private fun DataDisplayPanel(
     val strings = LocalAppStrings.current
     val prefs = viewModel.prefs
     var confirmClearLogs by remember { mutableStateOf(false) }
+    var logSplitRatio by remember { mutableStateOf(0.70f) }
+    val coroutineScope = rememberCoroutineScope()
+
     // 搜索和类型筛选只派生显示列表，不删除 ViewModel 中的完整会话日志。
     val visibleLogs by remember(viewModel) {
         derivedStateOf { viewModel.logs.filter { prefs.logFilter.accepts(it) } }
@@ -616,6 +630,15 @@ private fun DataDisplayPanel(
     LaunchedEffect(visibleLogs.lastOrNull()?.id, prefs.logFilter.autoScroll) {
         if (prefs.logFilter.autoScroll && visibleLogs.isNotEmpty()) {
             listState.animateScrollToItem(visibleLogs.size)
+        }
+    }
+
+    val isScrolledToBottom by remember {
+        derivedStateOf {
+            val totalItems = listState.layoutInfo.totalItemsCount
+            if (totalItems == 0) return@derivedStateOf true
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisible >= totalItems - 2
         }
     }
 
@@ -640,133 +663,165 @@ private fun DataDisplayPanel(
             onClearLogs = { confirmClearLogs = true }
         )
         HorizontalDivider(color = colors.border.copy(alpha = 0.68f))
-        Box(
+
+        BoxWithConstraints(
             modifier = Modifier
-                .weight(if (showSendComposer) 0.68f else 1f)
+                .weight(1f)
                 .fillMaxWidth()
-                .background(colors.surfaceMuted.copy(alpha = 0.56f))
         ) {
-            if (visibleLogs.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    EmptyLogState()
-                }
-            } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
+            val totalHeightPx = constraints.maxHeight.toFloat()
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .weight(if (showSendComposer) logSplitRatio else 1f)
+                        .fillMaxWidth()
+                        .background(colors.surfaceMuted.copy(alpha = 0.56f))
                 ) {
-                    items(visibleLogs, key = { it.id }) { log ->
-                        LogEntryRow(
-                            log = log,
-                            baseColor = when (log.type) {
-                                LogType.TX -> colors.primary
-                                LogType.RX -> colors.success
-                                else -> colors.onSurface.copy(0.4f)
-                            },
-                            highlight = prefs.highlight,
-                            extraHighlight = prefs.logFilter.query
-                        )
-                    }
-                }
-            }
-        }
-        if (showSendComposer) {
-            HorizontalDivider(color = colors.border.copy(alpha = 0.76f))
-            Box(
-                modifier = Modifier
-                    .weight(0.32f)
-                    .fillMaxWidth()
-                    .background(colors.surface)
-            ) {
-            // HEX 模式实时预检输入；真正发送前 ViewModel 仍会再次校验。
-            val hexResult = remember(prefs.hexSend, viewModel.inputText) {
-                if (prefs.hexSend && viewModel.inputText.isNotBlank()) {
-                    HexInputParser.parse(viewModel.inputText)
-                } else {
-                    null
-                }
-            }
-            BasicTextField(
-                value = viewModel.inputText,
-                onValueChange = {
-                    viewModel.inputText = it
-                    viewModel.sendHistory.resetNavigation()
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(start = 12.dp, end = 12.dp, top = 11.dp, bottom = 50.dp)
-                    .onPreviewKeyEvent { event ->
-                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                        if (
-                            event.key == Key.Enter &&
-                            !event.isShiftPressed &&
-                            (event.isCtrlPressed || prefs.enterToSend)
+                    if (visibleLogs.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            EmptyLogState()
+                        }
+                    } else {
+                        LazyColumn(
+                            state = listState,
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 8.dp)
                         ) {
-                            viewModel.sendCurrentInput()
-                            return@onPreviewKeyEvent true
+                            items(visibleLogs, key = { it.id }) { log ->
+                                LogEntryRow(
+                                    log = log,
+                                    baseColor = when (log.type) {
+                                        LogType.TX -> colors.primary
+                                        LogType.RX -> colors.success
+                                        else -> colors.onSurface.copy(0.4f)
+                                    },
+                                    highlight = prefs.highlight,
+                                    extraHighlight = prefs.logFilter.query
+                                )
+                            }
                         }
-                        if (viewModel.inputText.contains('\n')) return@onPreviewKeyEvent false
-                        when (event.key) {
-                            Key.DirectionUp -> { viewModel.previousHistory(); true }
-                            Key.DirectionDown -> { viewModel.nextHistory(); true }
-                            else -> false
-                        }
-                    },
-                textStyle = TextStyle(color = colors.onSurface, fontSize = 13.sp),
-                cursorBrush = SolidColor(colors.primary)
-            )
-            if (viewModel.inputText.isBlank()) {
-                Text(
-                    text = LocalAppStrings.current.sendInputHint,
-                    modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 11.dp),
-                    color = colors.onSurface.copy(alpha = 0.34f),
-                    fontSize = 13.sp
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .background(colors.surfaceMuted)
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                val pendingBytes = viewModel.pendingSendByteCount()
-                Text(
-                    text = if (hexResult?.isValid == false) strings.invalidHexInput else strings.byteCount(pendingBytes ?: 0),
-                    modifier = Modifier.weight(1f),
-                    color = if (hexResult?.isValid == false) colors.error else colors.onSurface.copy(alpha = 0.62f),
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = strings.sendShortcutHint,
-                    color = colors.onSurface.copy(alpha = 0.44f),
-                    fontSize = 10.sp,
-                    maxLines = 1
-                )
-                if (hexResult != null) {
-                    TextButton(
-                        onClick = { if (hexResult.isValid) viewModel.inputText = hexResult.normalizedText },
-                        enabled = hexResult.isValid && viewModel.inputText.isNotBlank(),
-                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    }
+
+                    // 快速滚回底部悬浮气泡
+                    ScrollToBottomPill(
+                        visible = !isScrolledToBottom && visibleLogs.isNotEmpty(),
+                        count = visibleLogs.size,
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = 16.dp, bottom = 12.dp)
                     ) {
-                        Text(LocalAppStrings.current.btnFormatHex, fontSize = 11.sp)
+                        coroutineScope.launch {
+                            listState.animateScrollToItem(visibleLogs.size)
+                        }
                     }
                 }
-                Button(
-                    onClick = { viewModel.sendCurrentInput() },
-                    enabled = viewModel.canSend(viewModel.inputText),
-                    modifier = Modifier.heightIn(min = 38.dp),
-                    shape = RoundedCornerShape(7.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
-                ) {
-                    Text(strings.btnSendData, fontSize = 11.sp)
+
+                if (showSendComposer) {
+                    PanelSplitter(
+                        onDragDelta = { delta ->
+                            if (totalHeightPx > 0f) {
+                                logSplitRatio = (logSplitRatio + delta / totalHeightPx).coerceIn(0.20f, 0.85f)
+                            }
+                        },
+                        onReset = { logSplitRatio = 0.70f }
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f - logSplitRatio)
+                            .fillMaxWidth()
+                            .background(colors.surface)
+                    ) {
+                        // HEX 模式实时预检输入；真正发送前 ViewModel 仍会再次校验。
+                        val hexResult = remember(prefs.hexSend, viewModel.inputText) {
+                            if (prefs.hexSend && viewModel.inputText.isNotBlank()) {
+                                HexInputParser.parse(viewModel.inputText)
+                            } else {
+                                null
+                            }
+                        }
+                        BasicTextField(
+                            value = viewModel.inputText,
+                            onValueChange = {
+                                viewModel.inputText = it
+                                viewModel.sendHistory.resetNavigation()
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(start = 12.dp, end = 12.dp, top = 11.dp, bottom = 50.dp)
+                                .onPreviewKeyEvent { event ->
+                                    if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                                    if (
+                                        event.key == Key.Enter &&
+                                        !event.isShiftPressed &&
+                                        (event.isCtrlPressed || prefs.enterToSend)
+                                    ) {
+                                        viewModel.sendCurrentInput()
+                                        return@onPreviewKeyEvent true
+                                    }
+                                    if (viewModel.inputText.contains('\n')) return@onPreviewKeyEvent false
+                                    when (event.key) {
+                                        Key.DirectionUp -> { viewModel.previousHistory(); true }
+                                        Key.DirectionDown -> { viewModel.nextHistory(); true }
+                                        else -> false
+                                    }
+                                },
+                            textStyle = TextStyle(color = colors.onSurface, fontSize = 13.sp),
+                            cursorBrush = SolidColor(colors.primary)
+                        )
+                        if (viewModel.inputText.isBlank()) {
+                            Text(
+                                text = LocalAppStrings.current.sendInputHint,
+                                modifier = Modifier.align(Alignment.TopStart).padding(start = 12.dp, top = 11.dp),
+                                color = colors.onSurface.copy(alpha = 0.34f),
+                                fontSize = 13.sp
+                            )
+                        }
+                        Row(
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .fillMaxWidth()
+                                .background(colors.surfaceMuted)
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val pendingBytes = viewModel.pendingSendByteCount()
+                            Text(
+                                text = if (hexResult?.isValid == false) strings.invalidHexInput else strings.byteCount(pendingBytes ?: 0),
+                                modifier = Modifier.weight(1f),
+                                color = if (hexResult?.isValid == false) colors.error else colors.onSurface.copy(alpha = 0.62f),
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = strings.sendShortcutHint,
+                                color = colors.onSurface.copy(alpha = 0.44f),
+                                fontSize = 10.sp,
+                                maxLines = 1
+                            )
+                            if (hexResult != null) {
+                                TextButton(
+                                    onClick = { if (hexResult.isValid) viewModel.inputText = hexResult.normalizedText },
+                                    enabled = hexResult.isValid && viewModel.inputText.isNotBlank(),
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                ) {
+                                    Text(LocalAppStrings.current.btnFormatHex, fontSize = 11.sp)
+                                }
+                            }
+                            Button(
+                                onClick = { viewModel.sendCurrentInput() },
+                                enabled = viewModel.canSend(viewModel.inputText),
+                                modifier = Modifier.heightIn(min = 38.dp),
+                                shape = RoundedCornerShape(7.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 0.dp)
+                            ) {
+                                Text(strings.btnSendData, fontSize = 11.sp)
+                            }
+                        }
+                    }
                 }
-            }
             }
         }
     }
@@ -1100,6 +1155,7 @@ private fun LogEntryRow(
     extraHighlight: String = ""
 ) {
     val strings = LocalAppStrings.current
+    val colors = LocalAppColors.current
     val rowText = "[${log.time}] ${log.type.name.padEnd(4)} ${log.content}"
     ContextMenuArea(
         items = {
@@ -1109,7 +1165,140 @@ private fun LogEntryRow(
             )
         }
     ) {
-        LogLine(rowText, baseColor, highlight, extraHighlight)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 1.dp),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = log.time,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+                lineHeight = 18.sp,
+                color = colors.onSurface.copy(alpha = 0.38f),
+                modifier = Modifier.padding(top = 1.dp)
+            )
+
+            LogTypeBadge(log.type)
+
+            Box(modifier = Modifier.weight(1f)) {
+                LogLine(log.content, baseColor, highlight, extraHighlight)
+            }
+        }
+    }
+}
+
+@Composable
+private fun LogTypeBadge(type: LogType) {
+    val colors = LocalAppColors.current
+    val (bgColor, textColor) = when (type) {
+        LogType.TX -> colors.primary.copy(alpha = 0.14f) to colors.primary
+        LogType.RX -> colors.success.copy(alpha = 0.14f) to colors.success
+        LogType.INFO -> colors.onSurface.copy(alpha = 0.08f) to colors.onSurface.copy(alpha = 0.58f)
+    }
+    Box(
+        modifier = Modifier
+            .padding(top = 1.dp)
+            .clip(RoundedCornerShape(4.dp))
+            .background(bgColor)
+            .padding(horizontal = 5.dp, vertical = 1.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = type.name,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace,
+            color = textColor,
+            lineHeight = 11.sp
+        )
+    }
+}
+
+@Composable
+private fun ScrollToBottomPill(
+    visible: Boolean,
+    count: Int,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    androidx.compose.animation.AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn() + slideInVertically { it / 2 },
+        exit = fadeOut() + slideOutVertically { it / 2 },
+        modifier = modifier
+    ) {
+        val colors = LocalAppColors.current
+        Surface(
+            onClick = onClick,
+            shape = RoundedCornerShape(16.dp),
+            color = colors.surface,
+            border = BorderStroke(1.dp, colors.border.copy(alpha = 0.82f)),
+            shadowElevation = 4.dp
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowDownward,
+                    contentDescription = "Scroll to bottom",
+                    modifier = Modifier.size(13.dp),
+                    tint = colors.primary
+                )
+                Text(
+                    text = "$count",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PanelSplitter(
+    onDragDelta: (Float) -> Unit,
+    onReset: () -> Unit
+) {
+    val colors = LocalAppColors.current
+    var isHovered by remember { mutableStateOf(false) }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(7.dp)
+            .pointerHoverIcon(PointerIcon(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.N_RESIZE_CURSOR)))
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { change, dragAmount ->
+                    change.consume()
+                    onDragDelta(dragAmount)
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = { onReset() }
+                )
+            }
+            .background(if (isHovered) colors.primary.copy(alpha = 0.08f) else Color.Transparent),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(colors.border.copy(alpha = 0.72f))
+        )
+        Box(
+            modifier = Modifier
+                .width(36.dp)
+                .height(3.dp)
+                .clip(RoundedCornerShape(1.5.dp))
+                .background(if (isHovered) colors.primary else colors.border.copy(alpha = 0.9f))
+        )
     }
 }
 
