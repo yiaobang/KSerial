@@ -17,7 +17,12 @@ internal object HardwareTestSupport {
         "COM3" to "COM4",
         "COM5" to "COM6",
         "COM7" to "COM8",
-        "COM9" to "COM10"
+        "COM9" to "COM10",
+        "COM11" to "COM12",
+        "COM13" to "COM14",
+        "COM15" to "COM16",
+        "COM17" to "COM18",
+        "COM19" to "COM20"
     )
 
     val pairs: List<Pair<String, String>> by lazy {
@@ -91,6 +96,21 @@ internal object HardwareTestSupport {
             Thread.sleep(20)
         }
         assertTrue(condition(), "Condition was not met within ${timeoutMillis}ms")
+    }
+
+    /** TcpTransport 服务端是后台绑定，客户端连接需要重试到绑定完成。 */
+    fun connectWithRetry(port: Int, timeoutMillis: Long = 3_000): java.net.Socket {
+        val deadline = System.currentTimeMillis() + timeoutMillis
+        var lastError: java.io.IOException? = null
+        while (System.currentTimeMillis() < deadline) {
+            try {
+                return java.net.Socket("127.0.0.1", port)
+            } catch (e: java.io.IOException) {
+                lastError = e
+                Thread.sleep(20)
+            }
+        }
+        throw lastError ?: IllegalStateException("Unable to connect to 127.0.0.1:$port")
     }
 
     private fun observationPause() {

@@ -1,48 +1,38 @@
 package com.yiaobang.kserial.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ExpandLess
-import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.*
+import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yiaobang.kserial.SerialViewModel
 import com.yiaobang.kserial.i18n.LocalAppStrings
-import com.yiaobang.kserial.model.KeywordHighlightConfig
-import com.yiaobang.kserial.model.LogFilterConfig
 import com.yiaobang.kserial.model.ReceiveDisplayMode
 import com.yiaobang.kserial.model.SendLineEnding
 import com.yiaobang.kserial.model.SerialConnectionState
 import com.yiaobang.kserial.theme.LocalAppColors
 
 /**
- * 右侧控制面板容器，包含连接参数、动作按钮、选项复选框三张卡片
+ * 右侧控制面板容器，包含连接参数、动作按钮、选项复选框三张卡片。
+ * 表单基础控件（CardPanel、ParameterRow 等）见 CommonControls.kt。
+ * 日志相关的关键词高亮与筛选已收进日志头部（见 LogWidgets.kt），不在此处重复。
  */
 @Composable
 fun ControlPanel(vm: SerialViewModel) {
     val s = LocalAppStrings.current
     val config = vm.config
-    val prefs = vm.prefs
     var advancedConnectionExpanded by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -52,17 +42,17 @@ fun ControlPanel(vm: SerialViewModel) {
         CardPanel(title = s.panelConnection) {
             ConnectionFeedback(vm)
             PortParameterRow(vm)
-            ParameterRow(s.labelBaudRate, config.baudRate.toString(), com.yiaobang.kserial.model.SerialPortConfig.BAUD_RATES.map { it.toString() }) { config.baudRate = it.toInt() }
+            ParameterRow(s.labelBaudRate, config.baudRate.toString(), com.yiaobang.kserial.model.SerialPortConfig.BAUD_RATES.map { it.toString() }, labelWidth = 84.dp) { config.baudRate = it.toInt() }
             ExpandableSectionToggle(
                 title = s.labelAdvancedSerialParameters,
                 expanded = advancedConnectionExpanded,
                 onToggle = { advancedConnectionExpanded = !advancedConnectionExpanded }
             )
             if (advancedConnectionExpanded) {
-                ParameterRow(s.labelDataBits, config.dataBits.toString(), com.yiaobang.kserial.model.SerialPortConfig.DATA_BITS_LIST.map { it.toString() }) { config.dataBits = it.toInt() }
-                ParameterRow(s.labelStopBits, s.stopBitsOptions[config.stopBitsIndex], s.stopBitsOptions) { config.stopBitsIndex = s.stopBitsOptions.indexOf(it) }
-                ParameterRow(s.labelParity, s.parityOptions[config.parityIndex], s.parityOptions) { config.parityIndex = s.parityOptions.indexOf(it) }
-                ParameterRow(s.labelFlowControl, s.flowControlOptions[config.flowControlIndex], s.flowControlOptions) { config.flowControlIndex = s.flowControlOptions.indexOf(it) }
+                ParameterRow(s.labelDataBits, config.dataBits.toString(), com.yiaobang.kserial.model.SerialPortConfig.DATA_BITS_LIST.map { it.toString() }, labelWidth = 84.dp) { config.dataBits = it.toInt() }
+                ParameterRow(s.labelStopBits, s.stopBitsOptions[config.stopBitsIndex], s.stopBitsOptions, labelWidth = 84.dp) { config.stopBitsIndex = s.stopBitsOptions.indexOf(it) }
+                ParameterRow(s.labelParity, s.parityOptions[config.parityIndex], s.parityOptions, labelWidth = 84.dp) { config.parityIndex = s.parityOptions.indexOf(it) }
+                ParameterRow(s.labelFlowControl, s.flowControlOptions[config.flowControlIndex], s.flowControlOptions, labelWidth = 84.dp) { config.flowControlIndex = s.flowControlOptions.indexOf(it) }
             }
         }
 
@@ -93,14 +83,6 @@ fun ControlPanel(vm: SerialViewModel) {
 
         ExpandableCardPanel(title = s.panelProtocolTools) {
             ProtocolToolsPanel(vm)
-        }
-
-        ExpandableCardPanel(title = s.panelHighlight) {
-            HighlightEditor(prefs.highlight)
-        }
-
-        ExpandableCardPanel(title = s.panelLog) {
-            LogFilterEditor(prefs.logFilter)
         }
     }
 }
@@ -157,194 +139,51 @@ fun QuickSendPanel(vm: SerialViewModel) {
     }
 }
 
-/**
- * 通用卡片面板布局
- */
-@Composable
-fun CardPanel(title: String, content: @Composable ColumnScope.() -> Unit) {
-    val colors = LocalAppColors.current
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                title,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.onSurface.copy(0.58f),
-                letterSpacing = 0.35.sp
-            )
-            content()
-        }
-        HorizontalDivider(color = colors.border.copy(alpha = 0.68f))
-    }
-}
-
 @Composable
 private fun PortParameterRow(vm: SerialViewModel) {
     val strings = LocalAppStrings.current
+    val colors = LocalAppColors.current
     val details = vm.availablePortDetails
-    val selectedLabel = details.firstOrNull { it.systemName == vm.config.selectedPort }?.displayName
-        ?: vm.config.selectedPort.ifBlank { strings.notSelected }
     val labels = if (details.isNotEmpty()) details.map { it.displayName } else vm.availablePorts
-    ParameterRow(
-        label = strings.labelSerialPort,
-        value = selectedLabel,
-        options = labels,
-        menuWidth = 292.dp,
-        optionMaxLines = 2
-    ) { selected ->
-        vm.config.selectedPort = details.firstOrNull { it.displayName == selected }?.systemName ?: selected
-    }
-}
-
-@Composable
-fun ExpandableCardPanel(
-    title: String,
-    initiallyExpanded: Boolean = false,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    var expanded by remember { mutableStateOf(initiallyExpanded) }
-    val colors = LocalAppColors.current
-    val strings = LocalAppStrings.current
-    Column(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(45.dp)
-                .clickable { expanded = !expanded }
-                .padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
+    // 地址框既接受系统串口名，也接受 TransportRouter 认识的网络地址，
+    // 所以这里不做格式限制，只在下拉里提供检测到的串口作为快捷选择。
+    val isNetwork = vm.config.selectedPort.contains("://")
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        ParameterInputRow(
+            label = strings.labelAddress,
+            value = vm.config.selectedPort,
+            labelWidth = 84.dp,
+            minHeight = 34.dp,
+            placeholder = strings.addressPlaceholder,
+            // 连接中禁止编辑：地址逐字符变化会触发自动重连，想换端点先断开。
+            enabled = !vm.isConnectionActive,
+            onValueChange = { vm.config.selectedPort = it.trim() }
+        )
+        ParameterRow(
+            label = strings.labelDetectedPorts,
+            value = details.firstOrNull { it.systemName == vm.config.selectedPort }?.displayName
+                ?: strings.notSelected,
+            options = labels,
+            menuWidth = 292.dp,
+            optionMaxLines = 2,
+            labelWidth = 84.dp,
+            fieldHeight = 32.dp
+        ) { selected ->
+            vm.config.selectedPort = details.firstOrNull { it.displayName == selected }?.systemName ?: selected
+        }
+        if (isNetwork) {
             Text(
-                text = title,
-                modifier = Modifier.weight(1f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium,
-                color = colors.onSurface.copy(alpha = 0.76f)
+                strings.addressNetworkHint,
+                fontSize = 10.sp,
+                lineHeight = 13.sp,
+                color = colors.onSurface.copy(alpha = 0.5f)
             )
-            Icon(
-                imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) strings.actionCollapse else strings.actionExpand,
-                modifier = Modifier.size(18.dp),
-                tint = if (expanded) colors.primary else colors.onSurface.copy(alpha = 0.46f)
-            )
-        }
-        if (expanded) {
-            Column(
-                modifier = Modifier.padding(bottom = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
-                content = content
-            )
-        }
-        HorizontalDivider(color = colors.border.copy(alpha = 0.68f))
-    }
-}
-
-@Composable
-private fun ExpandableSectionToggle(
-    title: String,
-    expanded: Boolean,
-    onToggle: () -> Unit
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalAppStrings.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(38.dp)
-            .clip(RoundedCornerShape(7.dp))
-            .background(colors.background.copy(alpha = 0.72f))
-            .clickable(onClick = onToggle)
-            .padding(horizontal = 9.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = title,
-            modifier = Modifier.weight(1f),
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            color = colors.onSurface.copy(alpha = 0.74f)
-        )
-        Icon(
-            imageVector = if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-            contentDescription = if (expanded) strings.actionCollapse else strings.actionExpand,
-            modifier = Modifier.size(18.dp),
-            tint = colors.primary.copy(alpha = 0.76f)
-        )
-    }
-}
-
-/**
- * 参数下拉选择行
- */
-@Composable
-private fun ParameterRow(
-    label: String,
-    value: String,
-    options: List<String>,
-    menuWidth: Dp = 176.dp,
-    optionMaxLines: Int = 1,
-    onSelect: (String) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-    val colors = LocalAppColors.current
-    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.width(108.dp), fontSize = 12.sp, color = colors.onSurface.copy(alpha = 0.78f))
-        Box(modifier = Modifier.weight(1f)) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(7.dp))
-                    .background(colors.surfaceMuted)
-                    .border(1.dp, colors.border.copy(alpha = 0.82f), RoundedCornerShape(7.dp))
-                    .clickable(enabled = options.isNotEmpty()) { expanded = true }
-                    .padding(horizontal = 10.dp),
-                contentAlignment = Alignment.CenterStart
-            ) {
-                Text(
-                    value,
-                    modifier = Modifier.padding(end = 20.dp),
-                    fontSize = 12.sp,
-                    color = colors.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.align(Alignment.CenterEnd).size(17.dp), tint = colors.onSurface.copy(alpha = 0.54f))
-            }
-            DropdownMenu(
-                expanded = expanded,
-                onDismissRequest = { expanded = false },
-                modifier = Modifier.width(menuWidth).background(colors.surface).border(1.dp, colors.border.copy(alpha = 0.72f))
-            ) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = {
-                            Text(
-                                option,
-                                fontSize = 12.sp,
-                                lineHeight = 16.sp,
-                                color = colors.onSurface,
-                                maxLines = optionMaxLines,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        onClick = { onSelect(option); expanded = false }
-                    )
-                }
-            }
         }
     }
 }
 
 /**
- * 动作按钮网格（3×2 排列）
+ * 动作按钮网格（2×2 排列）
  */
 @Composable
 private fun ActionButtonGrid(vm: SerialViewModel, onClearSend: () -> Unit) {
@@ -379,7 +218,7 @@ private fun ActionButtonGrid(vm: SerialViewModel, onClearSend: () -> Unit) {
 }
 
 /**
- * 选项复选框网格（3×2 排列）
+ * 选项复选框网格
  */
 @Composable
 fun OptionsGrid(vm: SerialViewModel) {
@@ -387,27 +226,28 @@ fun OptionsGrid(vm: SerialViewModel) {
     val prefs = vm.prefs
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row {
-            OptionItem(prefs.showRealTime, s.optRealTime, Modifier.weight(1f)) { prefs.showRealTime = it }
-            OptionItem(prefs.hexDisplay, s.optHexDisplay, Modifier.weight(1f)) { prefs.hexDisplay = it }
+            OptionItem(prefs.showRealTime, s.optRealTime, Modifier.weight(1f), hint = s.hintRealTime) { prefs.showRealTime = it }
+            OptionItem(prefs.hexDisplay, s.optHexDisplay, Modifier.weight(1f), hint = s.hintHexDisplay) { prefs.hexDisplay = it }
         }
         Row {
-            OptionItem(prefs.hexSend, s.optHexSend, Modifier.weight(1f)) { prefs.hexSend = it }
+            OptionItem(prefs.hexSend, s.optHexSend, Modifier.weight(1f), hint = s.hintHexSend) { prefs.hexSend = it }
             OptionItem(
                 prefs.loopSendEnabled,
                 s.optLoopSend,
                 Modifier.weight(1f),
-                enabled = prefs.isLoopIntervalValid
+                enabled = prefs.isLoopIntervalValid,
+                hint = s.hintLoopSend
             ) { prefs.loopSendEnabled = it }
         }
         Row {
-            OptionItem(prefs.saveSend, s.optSaveSend, Modifier.weight(1f)) { prefs.saveSend = it }
-            OptionItem(prefs.saveReceive, s.optSaveReceive, Modifier.weight(1f)) { prefs.saveReceive = it }
+            OptionItem(prefs.saveSend, s.optSaveSend, Modifier.weight(1f), hint = s.hintSaveSend) { prefs.saveSend = it }
+            OptionItem(prefs.saveReceive, s.optSaveReceive, Modifier.weight(1f), hint = s.hintSaveReceive) { prefs.saveReceive = it }
         }
         Row {
-            OptionItem(prefs.enterToSend, s.optEnterToSend, Modifier.weight(1f)) { prefs.enterToSend = it }
-            OptionItem(prefs.clearAfterSend, s.optClearAfterSend, Modifier.weight(1f)) { prefs.clearAfterSend = it }
+            OptionItem(prefs.enterToSend, s.optEnterToSend, Modifier.weight(1f), hint = s.hintEnterToSend) { prefs.enterToSend = it }
+            OptionItem(prefs.clearAfterSend, s.optClearAfterSend, Modifier.weight(1f), hint = s.hintClearAfterSend) { prefs.clearAfterSend = it }
         }
-        OptionItem(prefs.autoReconnect, s.optAutoReconnect, Modifier.fillMaxWidth()) { vm.setAutoReconnect(it) }
+        OptionItem(prefs.autoReconnect, s.optAutoReconnect, Modifier.fillMaxWidth(), hint = s.hintAutoReconnect) { vm.setAutoReconnect(it) }
         ParameterRow(
             label = s.labelLineEnding,
             value = lineEndingLabel(prefs.sendLineEnding, s),
@@ -500,75 +340,40 @@ private fun LineControlPanel(vm: SerialViewModel) {
             strings.labelDtr,
             if (vm.dtrEnabled) colors.success else colors.surface,
             Modifier.weight(1f),
-            enabled = vm.isPortOpen && vm.config.flowControlIndex != 2
+            enabled = vm.isPortOpen && vm.config.flowControlIndex != 2,
+            hint = strings.hintDtr
         ) { vm.setDtr(!vm.dtrEnabled) }
         ActionButton(
             strings.labelRts,
             if (vm.rtsEnabled) colors.success else colors.surface,
             Modifier.weight(1f),
-            enabled = vm.isPortOpen && vm.config.flowControlIndex != 1
+            enabled = vm.isPortOpen && vm.config.flowControlIndex != 1,
+            hint = strings.hintRts
         ) { vm.setRts(!vm.rtsEnabled) }
         ActionButton(
             strings.labelBreak,
             if (vm.breakEnabled) colors.error else colors.surface,
             Modifier.weight(1f),
-            enabled = vm.isPortOpen
+            enabled = vm.isPortOpen,
+            hint = strings.hintBreak
         ) { vm.setBreak(!vm.breakEnabled) }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        SignalIndicator("CTS", vm.lineSignals.cts, Modifier.weight(1f))
-        SignalIndicator("DSR", vm.lineSignals.dsr, Modifier.weight(1f))
-        SignalIndicator("DCD", vm.lineSignals.dcd, Modifier.weight(1f))
-        SignalIndicator("RI", vm.lineSignals.ri, Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun SignalIndicator(label: String, active: Boolean, modifier: Modifier = Modifier) {
-    val colors = LocalAppColors.current
-    Row(
-        modifier = modifier
-            .heightIn(min = 32.dp)
-            .background(colors.background, RoundedCornerShape(4.dp))
-            .padding(horizontal = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(5.dp)
-    ) {
-        Box(
-            Modifier
-                .size(7.dp)
-                .clip(CircleShape)
-                .background(if (active) colors.success else colors.onSurface.copy(alpha = 0.28f))
-        )
-        Text(label, fontSize = 10.sp, color = colors.onSurface.copy(alpha = 0.72f))
+        SignalIndicator("CTS", vm.lineSignals.cts, Modifier.weight(1f), hint = strings.hintCts)
+        SignalIndicator("DSR", vm.lineSignals.dsr, Modifier.weight(1f), hint = strings.hintDsr)
+        SignalIndicator("DCD", vm.lineSignals.dcd, Modifier.weight(1f), hint = strings.hintDcd)
+        SignalIndicator("RI", vm.lineSignals.ri, Modifier.weight(1f), hint = strings.hintRi)
     }
 }
 
 @Composable
 private fun CompactNumericRow(label: String, value: String, onValueChange: (String) -> Unit, suffix: String) {
-    CompactTextRow(label, value, { next -> if (next.all(Char::isDigit)) onValueChange(next) }, suffix)
+    ParameterInputRow(label, value, onValueChange, suffix = suffix, numericOnly = true)
 }
 
 @Composable
 private fun CompactTextRow(label: String, value: String, onValueChange: (String) -> Unit, suffix: String = "") {
-    val colors = LocalAppColors.current
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(label, modifier = Modifier.width(110.dp), fontSize = 12.sp, color = colors.onSurface)
-        BasicTextField(
-            value = value,
-            onValueChange = onValueChange,
-            singleLine = true,
-            modifier = Modifier
-                .weight(1f)
-                .heightIn(min = 36.dp)
-                .background(colors.background, RoundedCornerShape(4.dp))
-                .border(1.dp, colors.border, RoundedCornerShape(4.dp))
-                .padding(horizontal = 8.dp, vertical = 8.dp),
-            textStyle = TextStyle(fontSize = 12.sp, color = colors.onSurface),
-            cursorBrush = SolidColor(colors.primary)
-        )
-        if (suffix.isNotEmpty()) Text(suffix, fontSize = 11.sp, color = colors.onSurface.copy(alpha = 0.55f))
-    }
+    ParameterInputRow(label, value, onValueChange, suffix = suffix)
 }
 
 private fun receiveModeLabel(mode: ReceiveDisplayMode, strings: com.yiaobang.kserial.i18n.AppStrings): String = when (mode) {
@@ -578,189 +383,11 @@ private fun receiveModeLabel(mode: ReceiveDisplayMode, strings: com.yiaobang.kse
     ReceiveDisplayMode.FIXED_LENGTH -> strings.receiveModeFixedLength
 }
 
-private fun lineEndingLabel(ending: SendLineEnding, strings: com.yiaobang.kserial.i18n.AppStrings): String = when (ending) {
+internal fun lineEndingLabel(ending: SendLineEnding, strings: com.yiaobang.kserial.i18n.AppStrings): String = when (ending) {
     SendLineEnding.NONE -> strings.lineEndingNone
     SendLineEnding.LF -> "LF (\\n)"
     SendLineEnding.CR -> "CR (\\r)"
     SendLineEnding.CRLF -> "CRLF (\\r\\n)"
-}
-
-/**
- * 通用操作按钮
- */
-@Composable
-fun ActionButton(
-    text: String,
-    color: Color,
-    modifier: Modifier,
-    enabled: Boolean = true,
-    onClick: () -> Unit
-) {
-    val colors = LocalAppColors.current
-    val isMainColor = color == colors.primary || color == colors.success || color == colors.error
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.height(40.dp),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = color,
-            disabledContainerColor = colors.surfaceMuted,
-            disabledContentColor = colors.onSurface.copy(alpha = 0.34f)
-        ),
-        shape = RoundedCornerShape(8.dp),
-        contentPadding = PaddingValues(0.dp),
-        border = if (!isMainColor) BorderStroke(1.dp, colors.border) else null
-    ) {
-        Text(
-            text,
-            fontSize = 12.sp,
-            color = if (!enabled) colors.onSurface.copy(alpha = 0.34f)
-            else if (isMainColor) Color.White else colors.onSurface
-        )
-    }
-}
-
-@Composable
-private fun QuickCommandButton(
-    text: String,
-    modifier: Modifier,
-    enabled: Boolean,
-    onClick: () -> Unit
-) {
-    val colors = LocalAppColors.current
-    val contentAlpha = if (enabled) 1f else 0.34f
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = modifier.height(36.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = colors.surfaceMuted),
-        shape = RoundedCornerShape(5.dp),
-        contentPadding = PaddingValues(horizontal = 7.dp),
-        border = BorderStroke(1.dp, colors.border.copy(alpha = 0.72f))
-    ) {
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.Send,
-            contentDescription = null,
-            modifier = Modifier.size(13.dp),
-            tint = colors.primary.copy(alpha = 0.82f * contentAlpha)
-        )
-        Spacer(Modifier.width(5.dp))
-        Text(
-            text = text,
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = colors.onSurface.copy(alpha = 0.84f * contentAlpha)
-        )
-    }
-}
-
-@Composable
-fun HighlightEditor(highlight: KeywordHighlightConfig) {
-    val colors = LocalAppColors.current
-    val strings = LocalAppStrings.current
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Row {
-            OptionItem(highlight.enabled, strings.optEnable, Modifier.weight(1f)) { highlight.enabled = it }
-            OptionItem(highlight.ignoreCase, strings.optIgnoreCase, Modifier.weight(1f)) { highlight.ignoreCase = it }
-        }
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(54.dp)
-                .background(colors.surfaceMuted, RoundedCornerShape(5.dp))
-                .border(1.dp, colors.border.copy(alpha = 0.72f), RoundedCornerShape(5.dp))
-                .padding(horizontal = 8.dp, vertical = 6.dp),
-            contentAlignment = Alignment.TopStart
-        ) {
-            BasicTextField(
-                value = highlight.keywordsText,
-                onValueChange = { highlight.keywordsText = it },
-                modifier = Modifier.fillMaxSize(),
-                textStyle = TextStyle(fontSize = 12.sp, color = colors.onSurface),
-                cursorBrush = SolidColor(colors.primary)
-            )
-            if (highlight.keywordsText.isBlank()) {
-                Text(
-                    text = "ERROR, WARN, OK",
-                    fontSize = 12.sp,
-                    color = colors.onSurface.copy(alpha = 0.32f)
-                )
-            }
-        }
-        Text(
-            text = strings.keywordSeparatorHint,
-            fontSize = 11.sp,
-            color = colors.onSurface.copy(alpha = 0.48f)
-        )
-    }
-}
-
-@Composable
-fun LogFilterEditor(filter: LogFilterConfig) {
-    val colors = LocalAppColors.current
-    val strings = LocalAppStrings.current
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 38.dp)
-                .background(colors.surfaceMuted, RoundedCornerShape(5.dp))
-                .border(1.dp, colors.border.copy(alpha = 0.72f), RoundedCornerShape(5.dp))
-                .padding(horizontal = 8.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            BasicTextField(
-                value = filter.query,
-                onValueChange = { filter.query = it },
-                modifier = Modifier.fillMaxWidth(),
-                textStyle = TextStyle(fontSize = 12.sp, color = colors.onSurface),
-                singleLine = true,
-                cursorBrush = SolidColor(colors.primary)
-            )
-            if (filter.query.isBlank()) {
-                Text(strings.searchLog, fontSize = 12.sp, color = colors.onSurface.copy(alpha = 0.32f))
-            }
-        }
-        Row {
-            OptionItem(filter.onlyMatches, strings.optOnlyMatches, Modifier.weight(1f)) { filter.onlyMatches = it }
-            OptionItem(filter.autoScroll, strings.optAutoScroll, Modifier.weight(1f)) { filter.autoScroll = it }
-        }
-        Row {
-            OptionItem(filter.showRx, "RX", Modifier.weight(1f)) { filter.showRx = it }
-            OptionItem(filter.showTx, "TX", Modifier.weight(1f)) { filter.showTx = it }
-            OptionItem(filter.showInfo, "INFO", Modifier.weight(1f)) { filter.showInfo = it }
-        }
-        ActionButton(strings.btnResetLogFilter, colors.surface, Modifier.fillMaxWidth()) {
-            filter.reset()
-        }
-    }
-}
-
-/**
- * 复选框选项行
- */
-@Composable
-private fun OptionItem(
-    checked: Boolean,
-    label: String,
-    modifier: Modifier,
-    enabled: Boolean = true,
-    onChecked: (Boolean) -> Unit
-) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(4.dp))
-            .clickable(enabled = enabled) { onChecked(!checked) },
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Checkbox(checked = checked, enabled = enabled, onCheckedChange = onChecked)
-        Text(
-            label,
-            fontSize = 12.sp,
-            color = LocalAppColors.current.onSurface.copy(alpha = if (enabled) 1f else 0.38f)
-        )
-    }
 }
 
 @Composable
@@ -827,3 +454,4 @@ private fun ConnectionFeedback(vm: SerialViewModel) {
         }
     }
 }
+

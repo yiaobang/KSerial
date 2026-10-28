@@ -28,7 +28,11 @@ object AppPaths {
         "03-simulator-hex-fixed-length.conf",
         "04-bridge-one-way.conf",
         "05-bridge-bidirectional.conf",
-        "06-bridge-multi-route.conf"
+        "06-bridge-multi-route.conf",
+        "07-bridge-many-to-many.conf",
+        "08-simulator-device.conf",
+        "09-test-sequence.conf",
+        "10-network-endpoints.conf"
     )
 
     fun initializeConfigDirectory(): Result<Path> = initializeConfigDirectoryAt(

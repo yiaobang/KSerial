@@ -18,3 +18,8 @@ captures
 !*.xcworkspace/contents.xcworkspacedata
 **/xcshareddata/WorkspaceSettings.xcsettings
 node_modules/
+
+# 本机运行时生成的配置与示例（首次启动会自动释放，不应随仓库分发）
+composeApp/conf/
+# WorkBuddy 会话本地数据
+.workbuddy/

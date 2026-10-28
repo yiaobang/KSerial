@@ -49,6 +49,24 @@ object DesktopActions {
         )
     }
 
+    /** 保存 .conf 文件的通用对话框；返回用户选择的目标文件，取消返回 null。 */
+    fun saveConfigFile(dialogTitle: String, suggestedName: String): File? {
+        AppPaths.initializeConfigDirectory()
+        val selected = showFileDialog(
+            title = dialogTitle,
+            mode = FileDialog.SAVE,
+            initialDirectory = AppPaths.preferredConfigDirectory(),
+            initialFile = suggestedName
+        ) ?: return null
+        return if (selected.name.endsWith(".conf", ignoreCase = true) ||
+            selected.name.endsWith(".hocon", ignoreCase = true)
+        ) {
+            selected
+        } else {
+            File(selected.parentFile, "${selected.name}.conf")
+        }
+    }
+
     fun exportLogs(
         logs: List<LogEntry>,
         format: LogExportFormat,

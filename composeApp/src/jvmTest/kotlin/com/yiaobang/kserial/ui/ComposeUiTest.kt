@@ -194,7 +194,11 @@ class ComposeUiTest {
                 }
             }
 
-            onNodeWithText("Serial Port").assertExists()
+            // 终端页的端点行现在是「地址输入框 + 检测到的串口下拉」，
+            // 地址框既接受 COM3 也接受 tcp:// 这类网络地址。
+            onNodeWithText("Address").assertExists()
+            onNodeWithText("Detected ports").assertExists()
+            onNodeWithText("COM3 or tcp://host:port").assertExists()
             onNodeWithText("Receive Display").performClick()
             onNodeWithText("Receive Framing").assertExists()
             onNodeWithText("Time Window").assertExists()

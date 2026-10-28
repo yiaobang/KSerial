@@ -1,16 +1,5 @@
 package com.yiaobang.kserial
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
-import androidx.compose.ui.input.pointer.PointerIcon
-import androidx.compose.ui.input.pointer.pointerHoverIcon
-import androidx.compose.ui.input.pointer.pointerInput
-import kotlinx.coroutines.launch
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,53 +11,41 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyEventType
-import androidx.compose.ui.input.key.key
-import androidx.compose.ui.input.key.isCtrlPressed
-import androidx.compose.ui.input.key.isShiftPressed
-import androidx.compose.ui.input.key.onPreviewKeyEvent
-import androidx.compose.ui.input.key.type
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.yiaobang.kserial.feature.GatewayViewModel
 import com.yiaobang.kserial.i18n.AppStrings
 import com.yiaobang.kserial.i18n.LocalAppStrings
 import com.yiaobang.kserial.i18n.ProvideAppStrings
-import com.yiaobang.kserial.model.KeywordHighlightConfig
 import com.yiaobang.kserial.model.LogEntry
 import com.yiaobang.kserial.model.LogType
 import com.yiaobang.kserial.theme.CupertinoTheme
 import com.yiaobang.kserial.theme.LocalAppColors
 import com.yiaobang.kserial.ui.*
-import com.yiaobang.kserial.utils.HexInputParser
 import com.yiaobang.kserial.utils.DesktopActions
+import com.yiaobang.kserial.utils.HexInputParser
 import com.yiaobang.kserial.utils.LogExportFormat
 import com.yiaobang.kserial.utils.LogExporter
-import com.yiaobang.kserial.workspace.WindowHostState
-import com.yiaobang.kserial.workspace.BasicTabContent
-import com.yiaobang.kserial.workspace.GatewayTabContent
-import com.yiaobang.kserial.workspace.SimulatorTabContent
-import com.yiaobang.kserial.workspace.WorkspaceSection
-import com.yiaobang.kserial.workspace.WorkspaceState
+import com.yiaobang.kserial.workspace.*
+import kotlinx.coroutines.launch
 
 // 桌面工作区的页面组合集中在此文件；串口和路由业务状态留在各自 ViewModel 中。
+// 共享 UI 组件拆分在 ui/ 包：CommonControls（表单控件）、LogWidgets（日志组件）、PageLayout（页面骨架）。
 
 /** 主窗口和浮动窗口共用的应用外壳：标题栏、侧栏、标签栏和活动页面。 */
 @Composable
@@ -174,6 +151,27 @@ private fun WorkspaceSidebar(
             selected = selectedSection == WorkspaceSection.Gateway,
             onClick = { onSelectSection(WorkspaceSection.Gateway) }
         )
+        SidebarItem(
+            title = sectionLabel(WorkspaceSection.Recorder, strings),
+            icon = Icons.Default.FiberManualRecord,
+            compact = compact,
+            selected = selectedSection == WorkspaceSection.Recorder,
+            onClick = { onSelectSection(WorkspaceSection.Recorder) }
+        )
+        SidebarItem(
+            title = sectionLabel(WorkspaceSection.TestRunner, strings),
+            icon = Icons.Default.CheckCircle,
+            compact = compact,
+            selected = selectedSection == WorkspaceSection.TestRunner,
+            onClick = { onSelectSection(WorkspaceSection.TestRunner) }
+        )
+        SidebarItem(
+            title = sectionLabel(WorkspaceSection.Plotter, strings),
+            icon = Icons.AutoMirrored.Filled.ShowChart,
+            compact = compact,
+            selected = selectedSection == WorkspaceSection.Plotter,
+            onClick = { onSelectSection(WorkspaceSection.Plotter) }
+        )
     }
 }
 
@@ -181,6 +179,9 @@ private fun sectionLabel(section: WorkspaceSection, strings: AppStrings): String
     WorkspaceSection.Basic -> strings.sectionBasic
     WorkspaceSection.Simulator -> strings.sectionSimulator
     WorkspaceSection.Gateway -> strings.sectionGateway
+    WorkspaceSection.Recorder -> strings.sectionRecorder
+    WorkspaceSection.TestRunner -> strings.sectionTestRunner
+    WorkspaceSection.Plotter -> strings.sectionPlotter
 }
 
 @Composable
@@ -374,204 +375,12 @@ private fun WorkspaceContent(
                 is BasicTabContent -> BasicSerialPage(viewModel = content.viewModel)
                 is SimulatorTabContent -> SimulatorPage(viewModel = content.viewModel)
                 is GatewayTabContent -> GatewayPage(viewModel = content.viewModel)
+                is CaptureTabContent -> CapturePage(viewModel = content.viewModel)
+                is TestTabContent -> TestRunnerPage(viewModel = content.viewModel)
+                is PlotterTabContent -> PlotterPage(vm = content.viewModel)
                 null -> EmptyFeaturePage(host.selectedSection)
             }
         }
-    }
-}
-
-@Composable
-private fun ScrollableSidePanel(
-    width: Dp,
-    modifier: Modifier = Modifier,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    // 控制项可能超过窗口高度，始终显示滚动条提示下方还有更多设置。
-    val scrollState = rememberScrollState()
-    val colors = LocalAppColors.current
-    Box(
-        modifier = modifier
-            .width(width)
-            .fillMaxHeight()
-            .background(colors.surface)
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(start = 14.dp, end = 14.dp, top = 0.dp, bottom = 12.dp)
-                .verticalScroll(scrollState),
-            content = content
-        )
-        VerticalScrollbar(
-            adapter = rememberScrollbarAdapter(scrollState),
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight()
-                .width(6.dp),
-            style = ScrollbarStyle(
-                minimalHeight = 36.dp,
-                thickness = 6.dp,
-                shape = RoundedCornerShape(3.dp),
-                hoverDurationMillis = 180,
-                unhoverColor = colors.border.copy(alpha = 0.62f),
-                hoverColor = colors.primary.copy(alpha = 0.72f)
-            )
-        )
-    }
-}
-
-@Composable
-private fun AdaptivePageBody(
-    sideWidth: Dp,
-    modifier: Modifier = Modifier,
-    mainContent: @Composable (Modifier) -> Unit,
-    sideContent: @Composable ColumnScope.() -> Unit
-) {
-    var controlsVisible by remember { mutableStateOf(true) }
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val availableWidth = maxWidth
-        val narrow = availableWidth < 720.dp
-        if (narrow) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                if (controlsVisible) {
-                    InspectorPanel(
-                        width = availableWidth,
-                        modifier = Modifier.weight(1f),
-                        onClose = { controlsVisible = false },
-                        content = sideContent
-                    )
-                } else {
-                    CompactInspectorToggle(
-                        controlsVisible = controlsVisible,
-                        onToggle = { controlsVisible = true }
-                    )
-                    mainContent(Modifier.weight(1f).fillMaxWidth())
-                }
-            }
-        } else {
-            Row(modifier = Modifier.fillMaxSize()) {
-                mainContent(Modifier.weight(1f).padding(end = 10.dp))
-                if (controlsVisible) {
-                    InspectorPanel(
-                        width = sideWidth,
-                        onClose = { controlsVisible = false },
-                        content = sideContent
-                    )
-                } else {
-                    CollapsedInspectorRail(onToggle = { controlsVisible = true })
-                }
-            }
-        }
-    }
-}
-
-/** 展开的检查器是一个连续表面，标题、折叠动作和内部滚动属于同一层级。 */
-@Composable
-private fun InspectorPanel(
-    width: Dp,
-    modifier: Modifier = Modifier,
-    onClose: () -> Unit,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalAppStrings.current
-    Column(
-        modifier = Modifier
-            .then(modifier)
-            .width(width)
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(10.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border.copy(alpha = 0.82f), RoundedCornerShape(10.dp))
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth().height(46.dp).padding(start = 14.dp, end = 6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Default.Tune,
-                contentDescription = null,
-                modifier = Modifier.size(16.dp),
-                tint = colors.primary
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = strings.panelControls,
-                modifier = Modifier.weight(1f),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = colors.onSurface.copy(alpha = 0.82f)
-            )
-            AppTooltip(strings.actionHideControls) {
-                IconButton(onClick = onClose, modifier = Modifier.size(34.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.ChevronRight,
-                        contentDescription = strings.actionHideControls,
-                        modifier = Modifier.size(17.dp),
-                        tint = colors.onSurface.copy(alpha = 0.52f)
-                    )
-                }
-            }
-        }
-        HorizontalDivider(color = colors.border.copy(alpha = 0.72f))
-        ScrollableSidePanel(width = width, modifier = Modifier.weight(1f), content = content)
-    }
-}
-
-/** 仅在检查器收起时保留窄轨道，避免正常状态下浪费工作区宽度。 */
-@Composable
-private fun CollapsedInspectorRail(onToggle: () -> Unit) {
-    val colors = LocalAppColors.current
-    val strings = LocalAppStrings.current
-    Box(
-        modifier = Modifier
-            .width(42.dp)
-            .fillMaxHeight()
-            .clip(RoundedCornerShape(9.dp))
-            .background(colors.surface)
-            .border(1.dp, colors.border.copy(alpha = 0.82f), RoundedCornerShape(9.dp))
-    ) {
-        AppTooltip(strings.actionShowControls) {
-            IconButton(onClick = onToggle, modifier = Modifier.align(Alignment.TopCenter).padding(top = 5.dp).size(32.dp)) {
-                Icon(
-                    imageVector = Icons.Default.Tune,
-                    contentDescription = strings.actionShowControls,
-                    modifier = Modifier.size(17.dp),
-                    tint = colors.primary
-                )
-            }
-        }
-    }
-}
-
-/** 窄窗口使用完整的面板切换条，避免图标覆盖正文或失去上下文。 */
-@Composable
-private fun CompactInspectorToggle(
-    controlsVisible: Boolean,
-    onToggle: () -> Unit
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalAppStrings.current
-    val label = if (controlsVisible) strings.actionHideControls else strings.actionShowControls
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(42.dp)
-            .background(colors.surface)
-            .border(1.dp, colors.border.copy(alpha = 0.72f), RoundedCornerShape(8.dp))
-            .clip(RoundedCornerShape(8.dp))
-            .clickable(onClick = onToggle)
-            .padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(
-            imageVector = if (controlsVisible) Icons.Default.ChevronRight else Icons.Default.Tune,
-            contentDescription = null,
-            modifier = Modifier.size(17.dp),
-            tint = colors.primary
-        )
-        Text(label, color = colors.onSurface, fontSize = 12.sp, fontWeight = FontWeight.Medium)
     }
 }
 
@@ -621,6 +430,8 @@ private fun DataDisplayPanel(
     var confirmClearLogs by remember { mutableStateOf(false) }
     var logSplitRatio by remember { mutableStateOf(0.70f) }
     val coroutineScope = rememberCoroutineScope()
+    // Ctrl+F 聚焦日志头部的搜索框，和常见日志查看器保持一致。
+    val searchFocusRequester = remember { FocusRequester() }
 
     // 搜索和类型筛选只派生显示列表，不删除 ViewModel 中的完整会话日志。
     val visibleLogs by remember(viewModel) {
@@ -648,6 +459,14 @@ private fun DataDisplayPanel(
             .clip(workbenchShape)
             .background(colors.surface)
             .border(1.dp, colors.border.copy(alpha = 0.84f), workbenchShape)
+            .onPreviewKeyEvent { event ->
+                if (event.type == KeyEventType.KeyDown && event.isCtrlPressed && event.key == Key.F) {
+                    searchFocusRequester.requestFocus()
+                    true
+                } else {
+                    false
+                }
+            }
     ) {
         LogListHeader(
             totalCount = viewModel.logs.size,
@@ -660,7 +479,11 @@ private fun DataDisplayPanel(
             },
             onExportText = { exportSerialLogs(viewModel, visibleLogs, LogExportFormat.TEXT, strings) },
             onExportCsv = { exportSerialLogs(viewModel, visibleLogs, LogExportFormat.CSV, strings) },
-            onClearLogs = { confirmClearLogs = true }
+            onClearLogs = { confirmClearLogs = true },
+            onQueryChange = { prefs.logFilter.query = it },
+            highlight = prefs.highlight,
+            filter = prefs.logFilter,
+            searchFocusRequester = searchFocusRequester
         )
         HorizontalDivider(color = colors.border.copy(alpha = 0.68f))
 
@@ -962,7 +785,10 @@ private fun GatewayLogPanel(
                     },
                     onExportText = { exportGatewayLogs(viewModel, visibleLogs, LogExportFormat.TEXT, strings) },
                     onExportCsv = { exportGatewayLogs(viewModel, visibleLogs, LogExportFormat.CSV, strings) },
-                    onClearLogs = { confirmClearLogs = true }
+                    onClearLogs = { confirmClearLogs = true },
+                    onQueryChange = { viewModel.logFilter.query = it },
+                    highlight = viewModel.highlight,
+                    filter = viewModel.logFilter
                 )
                 Spacer(Modifier.height(6.dp))
             }
@@ -1066,255 +892,6 @@ private fun GatewayStatusBar(viewModel: GatewayViewModel) {
     }
 }
 
-@Composable
-private fun LogListHeader(
-    totalCount: Int,
-    visibleCount: Int,
-    query: String,
-    onCopyLogs: () -> Unit,
-    onExportText: () -> Unit,
-    onExportCsv: () -> Unit,
-    onClearLogs: () -> Unit
-) {
-    val colors = LocalAppColors.current
-    val strings = LocalAppStrings.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp)
-            .padding(horizontal = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = strings.logCount(visibleCount, totalCount),
-            modifier = Modifier
-                .background(colors.surfaceMuted, RoundedCornerShape(5.dp))
-                .padding(horizontal = 7.dp, vertical = 3.dp),
-            color = colors.onSurface.copy(alpha = 0.68f),
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold
-        )
-        if (query.isNotBlank()) {
-            Text(
-                text = strings.searchPrefix(query),
-                color = colors.primary.copy(alpha = 0.72f),
-                fontSize = 11.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(start = 10.dp).weight(1f)
-            )
-        } else {
-            Spacer(Modifier.weight(1f))
-        }
-        Row(
-            modifier = Modifier
-                .clip(RoundedCornerShape(8.dp))
-                .background(colors.surfaceMuted)
-                .padding(2.dp),
-            horizontalArrangement = Arrangement.spacedBy(1.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            LogHeaderAction(Icons.Default.ContentCopy, strings.btnCopyLogs, onCopyLogs)
-            LogHeaderAction(Icons.Default.Description, strings.btnExportText, onExportText)
-            LogHeaderAction(Icons.Default.TableChart, strings.btnExportCsv, onExportCsv)
-            LogHeaderAction(Icons.Default.DeleteSweep, strings.actionClearLogs, onClearLogs, destructive = true)
-        }
-    }
-}
-
-@Composable
-private fun LogHeaderAction(
-    icon: ImageVector,
-    description: String,
-    onClick: () -> Unit,
-    destructive: Boolean = false
-) {
-    val colors = LocalAppColors.current
-    AppTooltip(description) {
-        IconButton(
-            onClick = onClick,
-            modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(6.dp))
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = description,
-                modifier = Modifier.size(17.dp),
-                tint = if (destructive) colors.error.copy(alpha = 0.76f) else colors.onSurface.copy(alpha = 0.64f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun LogEntryRow(
-    log: LogEntry,
-    baseColor: Color,
-    highlight: KeywordHighlightConfig,
-    extraHighlight: String = ""
-) {
-    val strings = LocalAppStrings.current
-    val colors = LocalAppColors.current
-    val rowText = "[${log.time}] ${log.type.name.padEnd(4)} ${log.content}"
-    ContextMenuArea(
-        items = {
-            listOf(
-                ContextMenuItem(strings.actionCopyRow) { DesktopActions.copyText(rowText) },
-                ContextMenuItem(strings.actionCopyContent) { DesktopActions.copyText(log.content) }
-            )
-        }
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 1.dp),
-            verticalAlignment = Alignment.Top,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Text(
-                text = log.time,
-                fontFamily = FontFamily.Monospace,
-                fontSize = 11.sp,
-                lineHeight = 18.sp,
-                color = colors.onSurface.copy(alpha = 0.38f),
-                modifier = Modifier.padding(top = 1.dp)
-            )
-
-            LogTypeBadge(log.type)
-
-            Box(modifier = Modifier.weight(1f)) {
-                LogLine(log.content, baseColor, highlight, extraHighlight)
-            }
-        }
-    }
-}
-
-@Composable
-private fun LogTypeBadge(type: LogType) {
-    val colors = LocalAppColors.current
-    val (bgColor, textColor) = when (type) {
-        LogType.TX -> colors.primary.copy(alpha = 0.14f) to colors.primary
-        LogType.RX -> colors.success.copy(alpha = 0.14f) to colors.success
-        LogType.INFO -> colors.onSurface.copy(alpha = 0.08f) to colors.onSurface.copy(alpha = 0.58f)
-    }
-    Box(
-        modifier = Modifier
-            .padding(top = 1.dp)
-            .clip(RoundedCornerShape(4.dp))
-            .background(bgColor)
-            .padding(horizontal = 5.dp, vertical = 1.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = type.name,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            fontFamily = FontFamily.Monospace,
-            color = textColor,
-            lineHeight = 11.sp
-        )
-    }
-}
-
-@Composable
-private fun ScrollToBottomPill(
-    visible: Boolean,
-    count: Int,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    androidx.compose.animation.AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn() + slideInVertically { it / 2 },
-        exit = fadeOut() + slideOutVertically { it / 2 },
-        modifier = modifier
-    ) {
-        val colors = LocalAppColors.current
-        Surface(
-            onClick = onClick,
-            shape = RoundedCornerShape(16.dp),
-            color = colors.surface,
-            border = BorderStroke(1.dp, colors.border.copy(alpha = 0.82f)),
-            shadowElevation = 4.dp
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.ArrowDownward,
-                    contentDescription = "Scroll to bottom",
-                    modifier = Modifier.size(13.dp),
-                    tint = colors.primary
-                )
-                Text(
-                    text = "$count",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = colors.primary
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun PanelSplitter(
-    onDragDelta: (Float) -> Unit,
-    onReset: () -> Unit
-) {
-    val colors = LocalAppColors.current
-    var isHovered by remember { mutableStateOf(false) }
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(7.dp)
-            .pointerHoverIcon(PointerIcon(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.N_RESIZE_CURSOR)))
-            .pointerInput(Unit) {
-                detectVerticalDragGestures { change, dragAmount ->
-                    change.consume()
-                    onDragDelta(dragAmount)
-                }
-            }
-            .pointerInput(Unit) {
-                detectTapGestures(
-                    onDoubleTap = { onReset() }
-                )
-            }
-            .background(if (isHovered) colors.primary.copy(alpha = 0.08f) else Color.Transparent),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(1.dp)
-                .background(colors.border.copy(alpha = 0.72f))
-        )
-        Box(
-            modifier = Modifier
-                .width(36.dp)
-                .height(3.dp)
-                .clip(RoundedCornerShape(1.5.dp))
-                .background(if (isHovered) colors.primary else colors.border.copy(alpha = 0.9f))
-        )
-    }
-}
-
-@Composable
-private fun ConfirmClearLogsDialog(visible: Boolean, onConfirm: () -> Unit, onDismiss: () -> Unit) {
-    if (!visible) return
-    val strings = LocalAppStrings.current
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(strings.confirmClearLogsTitle) },
-        text = { Text(strings.confirmClearLogsMessage) },
-        confirmButton = { TextButton(onClick = onConfirm) { Text(strings.btnConfirm) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(strings.btnCancel) } }
-    )
-}
-
 private fun exportSerialLogs(
     viewModel: SerialViewModel,
     logs: List<LogEntry>,
@@ -1335,113 +912,6 @@ private fun exportGatewayLogs(
     DesktopActions.exportLogs(logs, format, strings.exportLogsDialogTitle)
         .onSuccess { file -> file?.let { viewModel.reportInfo(strings.logsExported(it.absolutePath)) } }
         .onFailure { viewModel.reportInfo(strings.operationFailed(it.message.orEmpty())) }
-}
-
-@Composable
-private fun EmptyLogState(message: String? = null) {
-    val colors = LocalAppColors.current
-    val strings = LocalAppStrings.current
-    Column(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Icon(
-            imageVector = Icons.Default.Terminal,
-            contentDescription = null,
-            modifier = Modifier.size(28.dp),
-            tint = colors.onSurface.copy(alpha = 0.24f)
-        )
-        Text(
-            text = message ?: strings.emptyLog,
-            color = colors.onSurface.copy(alpha = 0.46f),
-            fontSize = 12.sp
-        )
-    }
-}
-
-@Composable
-private fun LogLine(
-    text: String,
-    baseColor: Color,
-    highlight: KeywordHighlightConfig,
-    extraHighlight: String = ""
-) {
-    val keywords = remember(highlight.keywordsText) { highlight.keywords }
-    val activeKeywords = remember(keywords, extraHighlight) {
-        buildList {
-            addAll(keywords)
-            extraHighlight.trim().takeIf { it.isNotEmpty() }?.let { add(it) }
-        }
-    }
-    Text(
-        text = if (highlight.enabled || extraHighlight.isNotBlank()) {
-            buildHighlightedLogText(
-                text = text,
-                keywords = activeKeywords,
-                ignoreCase = highlight.ignoreCase
-            )
-        } else {
-            AnnotatedString(text)
-        },
-        color = baseColor,
-        fontFamily = FontFamily.Monospace,
-        fontSize = 13.sp,
-        lineHeight = 18.sp
-    )
-}
-
-private fun buildHighlightedLogText(
-    text: String,
-    keywords: List<String>,
-    ignoreCase: Boolean
-): AnnotatedString {
-    // 合并关键词和搜索词命中范围后统一着色，避免重叠区间重复拼接文本。
-    val ranges = findKeywordRanges(text, keywords, ignoreCase)
-    if (ranges.isEmpty()) return AnnotatedString(text)
-
-    val style = SpanStyle(
-        color = Color.Black,
-        background = Color(0xFFFFE58F),
-        fontWeight = FontWeight.Bold
-    )
-    return AnnotatedString(
-        text = text,
-        spanStyles = ranges.map { range ->
-            AnnotatedString.Range(style, range.first, range.last + 1)
-        }
-    )
-}
-
-private fun findKeywordRanges(
-    text: String,
-    keywords: List<String>,
-    ignoreCase: Boolean
-): List<IntRange> {
-    // 每次命中后至少推进一个字符，允许重叠匹配并避免空关键词造成死循环。
-    val ranges = mutableListOf<IntRange>()
-    keywords.forEach { keyword ->
-        var start = 0
-        while (start < text.length) {
-            val index = text.indexOf(keyword, startIndex = start, ignoreCase = ignoreCase)
-            if (index < 0) break
-            ranges += index until index + keyword.length
-            start = index + keyword.length
-        }
-    }
-    if (ranges.isEmpty()) return emptyList()
-
-    val sorted = ranges.sortedBy { it.first }
-    val merged = mutableListOf<IntRange>()
-    sorted.forEach { range ->
-        val last = merged.lastOrNull()
-        if (last == null || range.first > last.last + 1) {
-            merged += range
-        } else if (range.last > last.last) {
-            merged[merged.lastIndex] = last.first..range.last
-        }
-    }
-    return merged
 }
 
 @Composable

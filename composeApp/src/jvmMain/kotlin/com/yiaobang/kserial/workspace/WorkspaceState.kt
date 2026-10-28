@@ -7,7 +7,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.setValue
 import com.yiaobang.kserial.SerialViewModel
+import com.yiaobang.kserial.feature.CaptureViewModel
 import com.yiaobang.kserial.feature.GatewayViewModel
+import com.yiaobang.kserial.feature.PlotterViewModel
+import com.yiaobang.kserial.feature.TestRunnerViewModel
 import com.yiaobang.kserial.model.AppPreferences
 import com.yiaobang.kserial.model.AppSettingsStore
 import com.yiaobang.kserial.model.LogType
@@ -141,6 +144,15 @@ class WorkspaceState(
             )
             WorkspaceSection.Gateway -> GatewayTabContent(
                 GatewayViewModel().apply { language = prefs.currentLanguage }
+            )
+            WorkspaceSection.Recorder -> CaptureTabContent(
+                CaptureViewModel().apply { language = prefs.currentLanguage }
+            )
+            WorkspaceSection.TestRunner -> TestTabContent(
+                TestRunnerViewModel().apply { language = prefs.currentLanguage }
+            )
+            WorkspaceSection.Plotter -> PlotterTabContent(
+                PlotterViewModel().apply { language = prefs.currentLanguage }
             )
         }
         val tab = AppTab(

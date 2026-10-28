@@ -22,9 +22,21 @@ import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import kotlin.time.Duration.Companion.milliseconds
 import java.awt.Window as AwtWindow
+import kotlin.system.exitProcess
+
+/**
+ * 程序入口：带参数时进入无头模式（gateway / simulate / test），
+ * 不带参数才启动 GUI。这样同一个安装包既能当桌面工具，也能塞进 CI 脚本。
+ */
+fun main(args: Array<String>) {
+    if (args.isNotEmpty()) {
+        exitProcess(com.yiaobang.kserial.cli.runCli(args))
+    }
+    startGui()
+}
 
 /** Compose Desktop 入口：创建唯一工作区，并为主窗口和浮动窗口绑定各自宿主状态。 */
-fun main() = application {
+private fun startGui() = application {
     val workspace = remember { WorkspaceState() }
     val appIcon = painterResource(Res.drawable.app_icon)
 

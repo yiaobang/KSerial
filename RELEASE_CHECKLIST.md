@@ -5,7 +5,7 @@ Use this checklist before publishing a stable version.
 ## Version and repository
 
 - Set `appVersion=x.y.z` in `gradle.properties`.
-- Confirm README files, configuration samples, `ROADMAP.md`, and release notes match the shipped behavior.
+- Confirm README files, `ARCHITECTURE.md`, `config_samples/`, and release notes match the shipped behavior.
 - Confirm the working tree contains only intentional release changes.
 
 ## Automated verification
@@ -15,9 +15,11 @@ Use this checklist before publishing a stable version.
 .\gradlew.bat :composeApp:packageReleaseDistributionForCurrentOS :composeApp:createReleaseDistributable
 ```
 
-- Confirm unit tests cover settings, HEX parsing, checksums, framing, simulator rules, routes, filters, and history.
-- Launch the portable application once and confirm `conf/settings.conf` and all six samples are created without opening a serial port.
+- Confirm unit tests cover settings, HEX parsing, checksums, framing, simulator rules (including reply delays), routes, network transport routing, test sequences, capture, plotter parsing, filters, and history.
+- Launch the portable application once and confirm `conf/settings.conf` and all ten samples (`01-`…`10-`) are created without opening a serial port.
 - Smoke-test a real or paired virtual serial port: open, send, receive, reconnect, and close.
+- Smoke-test the headless entry point from the packaged binary: `KSerial.exe --help` prints usage and exits with code 0, and `KSerial.exe test <conf> --report out.txt` writes a report.
+- Open the **Serial Plotter** workspace with a paired port and confirm a numeric line terminated by a newline produces a curve.
 
 ## Platform packages
 

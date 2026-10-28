@@ -10,7 +10,7 @@ kotlinx-coroutines = "1.11.0"
 kotlinx-serialization = "1.11.0"
 jSerialComm = "2.11.4"
 config = "1.4.9"
-kover = "0.9.8"
+kover = "0.9.11"
 
 [libraries]
 compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "composeMultiplatform" }

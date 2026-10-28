@@ -27,19 +27,27 @@ KSerial is built with Kotlin and Compose Multiplatform for embedded development,
 - Track explicit connection states, detect unexpected disconnects, optionally reconnect, control DTR/RTS/Break, and inspect CTS/DSR/DCD/RI signals.
 - Reuse bounded send history with keyboard navigation, and calculate CRC16-Modbus, XOR, SUM8, or LRC checksums.
 - Inspect TX/RX counters, search and filter logs, highlight keywords, copy entries, export TXT/CSV, and persist traffic to disk.
-- Describe device response rules in HOCON `.conf` / `.hocon` files, with fixed-length and delimiter-based framing.
+- Describe device response rules in HOCON `.conf` / `.hocon` files, with fixed-length and delimiter-based framing; reply delays can be a fixed millisecond value or a **randomized range** such as `"100~300"` to reproduce real-device jitter.
 - Connect multiple serial endpoints with configurable one-to-one, one-to-many, and many-to-many routes.
+- **Network endpoints**: any workspace accepts `tcp://host:port`, `tcp-listen://port`, `udp://host:port`, and `udp-listen://port` addresses alongside physical serial ports.
+- **Serial recorder**: a dedicated 1-to-1 transparent workspace that forwards between a vendor software and the real device while recording request/response pairs, exportable straight to the device simulator config. When there is no vendor software and the device exposes a single port, switch to **manual mode** and drive the device from the built-in input box — the pairs are recorded the same way.
+- **Test sequences**: declarative HOCON step scripts (send/expect with CONTAINS/EXACT/REGEX/SILENCE matching, ASCII/HEX encodings) with pass/fail reports.
+- **Serial plotter**: live line chart of numeric streams (multiple channels per line, CSV-friendly).
+- **Headless mode**: the same executable can run bridge, simulation, or test sequences from a terminal when started with arguments, ready for scripts and CI. See [Headless mode (CLI)](#headless-mode-cli).
 - Work with multiple tabs, detach tabs into separate windows, merge them back, and prevent duplicate port ownership.
 - Switch between Simplified Chinese, English, and Japanese, with light and dark themes.
 - Download installers and portable distributions for Windows, macOS, and Linux, built by GitHub Actions.
 
-## Workspaces
+## Six workspaces
 
 | Workspace | Purpose |
 | --- | --- |
 | **Serial Console** | Everyday serial debugging: connect devices, exchange text or HEX data, loop or quick-send commands, filter logs, and save TX/RX traffic. |
 | **Device Simulator** | Match incoming frames and reply from configuration, useful for simulating devices, testing host software, and repeating protocol scenarios. |
-| **Serial Bridge** | Manage multiple serial endpoints and forwarding routes for pass-through, relaying, and multi-device integration tests. |
+| **Serial Bridge** | Manage multiple endpoints and forwarding routes; endpoints can be physical serial ports or TCP/UDP addresses, for pass-through, relaying, remote serial access, and multi-device integration tests. |
+| **Capture** | Forward bytes between two endpoints while recording command/response pairs, then export a simulator configuration; network endpoints and a manual mode are also supported. |
+| **Test Sequence** | Send, wait, and assert step by step from a configuration file, producing a PASS/FAIL report for protocol regressions. |
+| **Plotter** | Turn numeric text streams into multi-channel live curves for sensors and control-loop tuning. |
 
 Each workspace supports multiple independent tabs. A tab can be detached into its own window and merged back into the main window later.
 
@@ -61,16 +69,43 @@ Release packages include the application runtime, so end users normally do not n
 2. Choose a port and set its baud rate and other parameters under “Connection & Settings.”
 3. Open the port and send text or HEX data from the input area at the bottom. Before sending, text mode fully decodes `\\`, `\'`, `\"`, `\?`, `\a`, `\b`, `\e`, `\f`, `\n`, `\r`, `\s`, `\t`, `\v`, octal `\ooo`, raw-byte `\xHH`, Unicode `\uHHHH` / `\UHHHHHHHH`, and control-character `\cX` escapes.
 4. Press `Ctrl+Enter` to send, or enable Enter-to-send (`Shift+Enter` inserts a line break), and select LF, CR, or CRLF when the protocol needs a terminator.
-5. Enable automatic reconnect, receive framing, loop sending, quick commands, keyword highlighting, log filters, or TX/RX persistence as needed.
+5. Enable automatic reconnect, receive framing, loop sending, quick commands, or TX/RX persistence as needed. Search, keyword highlighting, and log filters live in the log header: the search box filters inline (`Ctrl+F` focuses it), and the two icons open the highlight and filter options.
 
 To emulate a device, load a rule file in **Device Simulator**. To forward data across ports, load endpoint and route configuration in **Serial Bridge**.
+
+### Serial ⇄ Network (TCP / UDP)
+
+**Terminal**, **Plotter**, and **Recorder** all expose an address box, as does Serial Bridge endpoint configuration. Besides a serial port name they accept the following network forms (case-insensitive); each address box also has a *Detected ports* drop-down for picking a system port:
+
+| Syntax | Behavior |
+| --- | --- |
+| `COM3` / `/dev/ttyUSB0` | Physical serial port (default) |
+| `tcp://192.168.1.20:8080` | TCP client: connect to a remote serial server (ser2net, ESP-Link, USR-TCP232, etc.) |
+| `tcp://:9000` / `tcp-listen://9000` | TCP server: listen locally for an incoming peer (one client at a time; a newer connection replaces the older one) |
+| `udp://192.168.1.20:9000` | UDP: exchange datagrams with a fixed peer |
+| `udp-listen://9000` | Listen on a UDP port; replies go to the peer address of the first received datagram |
+
+**Typical scenario: operate computer B's serial port from computer A.**
+
+1. Computer B (where the port lives): open **Serial Bridge**, load a configuration whose endpoints are its local port (e.g. `COM3`, baud rate set here) and `tcp-listen://9000`, with routes in both directions;
+2. Computer A: type `tcp://<B's IP>:9000` into the address box of **Terminal** or **Plotter** (Recorder works the same way). Once open, sending, HEX, loop sending, recording, and plotting work exactly as with a local port;
+3. Computer B can also run the same bridge configuration headlessly in the background — handy for a long-running "serial server".
+
+**Notes:**
+
+- Network endpoints have no baud-rate concept; serial parameters (baud rate, parity, …) are set on the side that owns the physical port.
+- DTR / RTS / BREAK line control is a local electrical signal and does **not** traverse the network; data transfer is unaffected.
+- Each listening port accepts a single client connection at a time.
+- `udp-listen` replies to the peer address of the first received datagram; if the peer's address changes, a new datagram must arrive before replies follow it again.
+
+For HOCON syntax and a complete example, see [`config_samples/10-network-endpoints.conf`](config_samples/10-network-endpoints.conf).
 
 ### Runtime directory and `settings.conf`
 
 On first launch, KSerial uses `System.getProperty("user.dir")` as its runtime root, creates a `conf` directory, and writes:
 
 - `settings.conf` for global settings;
-- `01-simulator-minimal.conf` through `06-bridge-multi-route.conf` as progressive Device Simulator and Serial Bridge examples.
+- `01-simulator-minimal.conf` through `10-network-endpoints.conf` as progressive simulator, bridge, test sequence, and network endpoint examples.
 
 Device Simulator and Serial Bridge file dialogs open this `conf` directory first. When upgrading, KSerial copies the legacy user settings file if the new directory does not yet contain `settings.conf`. Example files are created only when missing and never overwrite user edits.
 
@@ -118,6 +153,10 @@ The repository contains a progressive set of HOCON examples, from a minimal simu
 - [One-way Serial Bridge](config_samples/04-bridge-one-way.conf)
 - [Bidirectional Serial Bridge](config_samples/05-bridge-bidirectional.conf)
 - [Multi-endpoint, multi-route Serial Bridge](config_samples/06-bridge-multi-route.conf)
+- [Many-to-many full mesh bridge](config_samples/07-bridge-many-to-many.conf)
+- [AT-style device simulator with reply delay](config_samples/08-simulator-device.conf)
+- [Automated test sequence](config_samples/09-test-sequence.conf)
+- [Serial ⇄ TCP network endpoint](config_samples/10-network-endpoints.conf)
 
 HOCON `.conf` files accept `#` and `//` comments, so port roles, protocol notes, and debugging context can stay next to the configuration.
 
@@ -144,6 +183,117 @@ simulator {
 ```
 
 Use `HEX` for `encode` when working with byte-oriented rules. `packSize` enables fixed-length framing, while `delimiter` enables delimiter-based framing; exactly one must be present. A simulator must define a complete endpoint, while a bridge must define at least two endpoints and one enabled route. Configuration loading reports invalid HEX, empty delimiters, missing ports, duplicate ports, and broken route references.
+
+### Reply delay (fixed or randomized)
+
+Replies can be delayed: `300` waits a fixed 300 ms, while `"100~300"` waits a **uniformly random** 100–300 ms per reply:
+
+```hocon
+simulator {
+  responseDelay = "10~80"          # Global: every reply lands within 10–80 ms
+
+  rules = [
+    { request = "AT\r\n",         response = "OK\r\n" }
+    { request = "AT+STATUS?\r\n", response = "STATUS:READY\r\n", delay = "200~500" }  # Per-rule override
+    { request = "AT+ID\r\n",      response = "ID:42\r\n",       delay = 20 }           # Fixed 20 ms
+  ]
+}
+```
+
+- The unit is milliseconds and the range is `0`–`600000`; both `~` and `-` work as separators, and surrounding spaces are optional.
+- Precedence: per-rule `delay` > global `responseDelay` > default `0` (reply immediately).
+- **Randomized ranges exist to test boundaries**: real device timing jitters, and a fixed value never pushes host software against its timeout threshold. Set the range slightly above that threshold to see whether it retries correctly and avoids processing the same reply twice.
+- Multiple delayed replies are written **FIFO**, matching a real device that handles one request at a time.
+- Invalid values never fail silently: a bad `responseDelay` falls back to `0` with a warning, and a bad per-rule `delay` falls back to the global value with a warning.
+
+## Automated test sequences
+
+Device simulation answers "how does the device respond"; a test sequence answers "how do we verify the device". One HOCON file describes `send → expect → timeout`, then runs it step by step with PASS/FAIL results:
+
+```hocon
+test {
+  connection { port = "COM2", baudRate = 115200 }
+  defaults   { timeout = 1000, interval = 100 }
+
+  steps = [
+    { name = "Handshake", send = "AT\r\n",         expect = "OK" },
+    { name = "Slow reply", send = "AT+STATUS?\r\n", expect = "STATUS:READY", timeout = 1500 },
+    { name = "Silence",   match = "silence",       timeout = 500 },
+    { name = "HEX",       encoding = "hex", send = "41 54 0D 0A", expect = "4F 4B" }
+  ]
+}
+```
+
+- **In the app**: open the **Test Sequence** workspace → load the configuration → Run. The port comes straight from `test.connection.port` in the file (there is no separate port picker, so change the configuration to switch ports). Each step shows PASS/FAIL, expected value, actual value, and elapsed time; failures distinguish "timed out with zero bytes" from "content mismatch".
+- **On the command line**: `KSerial.exe test 09-test-sequence.conf --report result.txt`. A non-zero exit code means at least one step failed, so it can gate CI directly.
+- Four match modes: `contains` (default, substring), `exact` (trimmed equality), `regex` (regex search), and `silence` (no byte may arrive within the window).
+- A step passes as soon as received data matches instead of waiting out the timeout; only a full timeout counts as a failure.
+- See [configuration reference](config_samples/README.en.md#test-sequence-fields) for the full field table and matching semantics, and [09-test-sequence.conf](config_samples/09-test-sequence.conf) for a runnable example.
+
+## Serial plotter
+
+Turn a device's numeric stream into live curves: **one sample per line, one channel per column** (up to 8 channels). Commas, spaces, and `KEY=VALUE` prefixes all parse.
+
+```
+23.5,61,1013      ← plain CSV
+TEMP=23.5,HUM=61  ← labelled values
+```
+
+- **Usage**: open the **Serial Plotter** workspace → type a port name (or a `tcp://` / `udp://` address) in the address box and set the baud rate → Open. The chart starts scrolling immediately; the window holds 200, 500, 1000, or 2000 samples.
+- The plotter address box accepts network addresses just like the terminal, so you can chart a remote device's numeric stream directly: enter `tcp://host:port` and open.
+- Samples received while **paused** are discarded rather than buffered for later, and **Clear** resets curves, channel count, and byte counters.
+- The Y axis auto-scales to the current window with the range shown in the corner, and the legend colors match the curves. Non-numeric lines (`OK`, error logs) are ignored, and binary streams without newlines are capped at 4096 bytes so memory stays bounded.
+- **The classic trap**: a sample only exists once a line is terminated. When sending from the terminal workspace, set the line ending to LF or CRLF — otherwise the bytes arrive but never become a curve.
+- **Diagnostics**: the chart header shows `RX N B`, adds `N B awaiting newline` when data is stuck, and the empty state explains whether newlines or numbers are missing.
+- Only UTF-8 text is supported; binary data shown as HEX cannot be plotted.
+
+## Headless mode (CLI)
+
+The same executable **opens no window when started with arguments** — run it from a terminal, a script, or CI:
+
+```powershell
+# Windows (install directory or unpacked zip)
+KSerial.exe gateway  07-bridge-many-to-many.conf --duration 60
+KSerial.exe simulate 08-simulator-device.conf
+KSerial.exe test     09-test-sequence.conf --report result.txt
+
+# Linux (unpacked tar.gz)
+./KSerial gateway 05-bridge-bidirectional.conf --duration 30
+
+# macOS (inside the .app bundle)
+/Applications/KSerial.app/Contents/MacOS/KSerial gateway 05-bridge-bidirectional.conf --duration 30
+```
+
+| Command | Alias | What it does |
+| --- | --- | --- |
+| `gateway` | `bridge` | Opens the endpoints in `gateway.endpoints` and forwards per `gateway.routes` |
+| `simulate` | `simulator` | Opens the endpoint in `simulator.*` and auto-replies per the rules |
+| `test` | `run-test` | Runs `test.steps` and reports per-step PASS/FAIL |
+| `help` | `--help`, `-h` | Prints usage |
+
+| Option | Applies to | Description |
+| --- | --- | --- |
+| `--duration <seconds>` / `-d` | `gateway`, `simulate` | Exits after the given duration; without it the process runs until Ctrl+C |
+| `--report <path>` | `test` | Writes a per-step text report |
+| `--lang zh\|en\|ja` | `gateway` | Language of configuration validation messages; defaults to the system locale |
+
+Exit codes: `0` success, `1` failure (configuration not runnable, port cannot open, or a test step failed), `2` usage error.
+
+Running from source works too, without packaging:
+
+```powershell
+.\gradlew.bat :composeApp:run --args="--help"
+.\gradlew.bat :composeApp:run --args="test 09-test-sequence.conf --report result.txt"
+```
+
+Common pitfalls:
+
+- Headless mode **only accepts endpoints from the configuration file**; there is no ad-hoc `COM3` argument — edit the `.conf` to change ports.
+- `simulate` requires `simulator.endpoint.port` in the file; the GUI convenience of "reuse current page settings" does not exist headless.
+- A `gateway` configuration without `routes` degrades to "forward everything received to all other endpoints".
+- Endpoint addresses also accept `tcp://`, `tcp-listen://`, `udp://`, and `udp-listen://`, so a headless process can serve as a permanent serial-port server (see "Serial ⇄ network" above).
+- Each log line carries a timestamp and goes to stdout, so redirecting keeps an audit trail: `KSerial.exe gateway x.conf > gateway.log 2>&1`.
+- In CI, use `--duration` so the process exits on its own instead of relying on Ctrl+C.
 
 ## Run from source
 
@@ -177,16 +327,22 @@ After refreshing the Gradle project, the following tasks are available in the ID
 | `coreTest` | Runs unit and Compose UI tests without opening real serial ports |
 | `terminalHardwareTest` | Uses virtual-port pair 1 to verify real bidirectional terminal traffic, escape parsing, and loop sending |
 | `simulatorHardwareTest` | Uses pairs 2 and 3 to verify ASCII delimiter framing and fixed-length HEX auto-replies |
-| `gatewayHardwareTest` | Uses all 5 pairs to verify configured routes, one-to-one, one-to-many, many-to-many, binary-transparent forwarding, and non-target isolation |
-| `allHardwareTest` | Runs terminal, device simulator, and serial gateway hardware tests sequentially |
+| `gatewayHardwareTest` | Uses pairs 1–5 to verify configured routes, one-to-one, one-to-many, many-to-many, binary-transparent forwarding, and non-target isolation |
+| `captureHardwareTest` | Verifies the Recorder: dual-port transparent recording and manual-mode Q&A recording against a single port |
+| `recorderRoundTripHardwareTest` | Full loop: record → export configuration → load in the simulator → replay reproduces the device |
+| `networkSerialBridgeHardwareTest` | Verifies serial ⇄ TCP hybrid bridging: transparent bidirectional traffic between a TCP server and a real serial port |
+| `testRunnerHardwareTest` | Verifies real-device test sequences: CONTAINS / HEX matching, failure detection, and silence waits |
+| `cliGatewayHardwareTest` | Verifies headless mode: the CLI gateway bridges TCP and a real serial port |
+| `plotterHardwareTest` | Verifies the Plotter: multi-channel sampling across fragmented/coalesced chunks, window trimming, and pause semantics |
+| `allHardwareTest` | Runs every real serial-port test strictly sequentially (virtual ports are a globally shared resource) |
 | `allKSerialTest` | Runs unit/UI tests first, followed by every real serial-port test |
 
-Three slower observation tasks are also available: `terminalHardwareObserve`, `simulatorHardwareObserve`, and `gatewayHardwareObserve`. They pause around each real write and print `OPEN`, `SEND`, `WRITE RESULT`, and `RECEIVED` traces to the console, making traffic easy to verify with an external serial monitor.
+Slower observation tasks (`terminalHardwareObserve`, `simulatorHardwareObserve`, `gatewayHardwareObserve`, and the other `*HardwareObserve` tasks) pause around each real write and print `OPEN`, `SEND`, `WRITE RESULT`, and `RECEIVED` traces to the console, making traffic easy to verify with an external serial monitor.
 
-Hardware tests use five connected virtual-port pairs by default: `COM1↔COM2`, `COM3↔COM4`, `COM5↔COM6`, `COM7↔COM8`, and `COM9↔COM10`. The first port in each pair acts as the external test peer, while KSerial opens the second. Override the topology with the `KSERIAL_PORT_PAIRS` environment variable using the format `portA:portB,portC:portD`.
+Hardware tests use ten connected virtual-port pairs by default: `COM1↔COM2`, `COM3↔COM4`, …, `COM19↔COM20`. The first port in each pair acts as the external test peer, while KSerial opens the second. Override the topology with the `KSERIAL_PORT_PAIRS` environment variable using the format `portA:portB,portC:portD`.
 
 ```powershell
-$env:KSERIAL_PORT_PAIRS = "COM11:COM12,COM13:COM14,COM15:COM16,COM17:COM18,COM19:COM20"
+$env:KSERIAL_PORT_PAIRS = "COM21:COM22,COM23:COM24"
 .\gradlew.bat :composeApp:allKSerialTest
 ```
 

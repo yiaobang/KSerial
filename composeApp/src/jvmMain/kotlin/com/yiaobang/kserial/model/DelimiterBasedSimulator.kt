@@ -7,7 +7,12 @@ package com.yiaobang.kserial.model
  * @param replies 指令-应答映射表
  * @param delimiter 预设的匹配结束符，例如 ASCII 的 0x0A (LF)
  */
-class DelimiterBasedSimulator(replies: Map<String, ByteArray>, private val delimiter: ByteArray) : DeviceSimulator(replies) {
+class DelimiterBasedSimulator(
+    replies: Map<String, ByteArray>,
+    private val delimiter: ByteArray,
+    ruleDelays: Map<String, ReplyDelay> = emptyMap(),
+    defaultDelay: ReplyDelay = ReplyDelay.fixed(0)
+) : DeviceSimulator(replies, ruleDelays, defaultDelay) {
 
     /**
      * 核心检测逻辑：

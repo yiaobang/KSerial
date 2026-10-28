@@ -5,22 +5,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
-import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.DeleteOutline
-import androidx.compose.material.icons.filled.PlaylistAdd
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,17 +56,21 @@ fun SendHistoryPanel(vm: SerialViewModel) {
                         fontSize = 11.sp,
                         color = colors.onSurface.copy(alpha = 0.82f)
                     )
-                    IconButton(
-                        onClick = { vm.promoteHistoryToQuickSend(command) },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.PlaylistAdd, strings.actionAddQuick, Modifier.size(17.dp), tint = colors.primary)
+                    AppTooltip(strings.actionAddQuick) {
+                        IconButton(
+                            onClick = { vm.promoteHistoryToQuickSend(command) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.PlaylistAdd, strings.actionAddQuick, Modifier.size(17.dp), tint = colors.primary)
+                        }
                     }
-                    IconButton(
-                        onClick = { vm.sendHistory.remove(command) },
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Icon(Icons.Default.DeleteOutline, strings.actionRemoveHistory, Modifier.size(17.dp), tint = colors.onSurface.copy(alpha = 0.48f))
+                    AppTooltip(strings.actionRemoveHistory) {
+                        IconButton(
+                            onClick = { vm.sendHistory.remove(command) },
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Icon(Icons.Default.DeleteOutline, strings.actionRemoveHistory, Modifier.size(17.dp), tint = colors.onSurface.copy(alpha = 0.48f))
+                        }
                     }
                 }
             }
@@ -113,11 +110,19 @@ fun ProtocolToolsPanel(vm: SerialViewModel) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        ToolSelectRow(
+        ParameterRow(
             label = strings.labelChecksum,
             value = algorithm.label,
-            options = ChecksumAlgorithm.entries.map { it.label }
-        ) { selected -> algorithm = ChecksumAlgorithm.entries.first { it.label == selected } }
+            options = ChecksumAlgorithm.entries.map { it.label },
+            onSelect = { selected -> algorithm = ChecksumAlgorithm.entries.first { it.label == selected } },
+            menuWidth = null,
+            labelWidth = 94.dp,
+            fieldHeight = 32.dp,
+            fieldShape = RoundedCornerShape(4.dp),
+            fieldBackground = colors.background,
+            fieldBorder = colors.border,
+            arrowTint = colors.primary
+        )
         Text(
             text = checksum?.let { strings.checksumResult(it.readableHex()) } ?: strings.checksumUnavailable,
             fontSize = 11.sp,
@@ -131,17 +136,27 @@ fun ProtocolToolsPanel(vm: SerialViewModel) {
         ) { vm.appendChecksum(algorithm) }
 
         Spacer(Modifier.height(2.dp))
-        ToolSelectRow(
+        ParameterRow(
             label = strings.labelFrameMode,
             value = if (frameMode == FrameMode.FIXED) strings.frameModeFixed else strings.frameModeDelimiter,
-            options = listOf(strings.frameModeFixed, strings.frameModeDelimiter)
-        ) { selected -> frameMode = if (selected == strings.frameModeFixed) FrameMode.FIXED else FrameMode.DELIMITER }
+            options = listOf(strings.frameModeFixed, strings.frameModeDelimiter),
+            onSelect = { selected ->
+                frameMode = if (selected == strings.frameModeFixed) FrameMode.FIXED else FrameMode.DELIMITER
+            },
+            menuWidth = null,
+            labelWidth = 94.dp,
+            fieldHeight = 32.dp,
+            fieldShape = RoundedCornerShape(4.dp),
+            fieldBackground = colors.background,
+            fieldBorder = colors.border,
+            arrowTint = colors.primary
+        )
         if (frameMode == FrameMode.FIXED) {
-            ToolInputRow(strings.labelFrameSize, frameSize) { value ->
+            ParameterInputRow(strings.labelFrameSize, frameSize, { value ->
                 if (value.all(Char::isDigit)) frameSize = value
-            }
+            }, labelWidth = 94.dp, minHeight = 32.dp)
         } else {
-            ToolInputRow(strings.labelDelimiter, delimiterHex) { delimiterHex = it }
+            ParameterInputRow(strings.labelDelimiter, delimiterHex, { delimiterHex = it }, labelWidth = 94.dp, minHeight = 32.dp)
         }
         Text(
             text = frameResult?.let { strings.frameResult(it.frames.size, it.remainder.size) } ?: strings.frameUnavailable,
@@ -169,64 +184,6 @@ private val ChecksumAlgorithm.label: String
         ChecksumAlgorithm.SUM8 -> "SUM8"
         ChecksumAlgorithm.LRC -> "LRC"
     }
-
-@Composable
-private fun ToolSelectRow(label: String, value: String, options: List<String>, onSelect: (String) -> Unit) {
-    val colors = LocalAppColors.current
-    var expanded by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.width(94.dp), fontSize = 12.sp, color = colors.onSurface)
-        Box(modifier = Modifier.weight(1f)) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(32.dp)
-                    .background(colors.background, RoundedCornerShape(4.dp))
-                    .border(1.dp, colors.border, RoundedCornerShape(4.dp))
-                    .clickable { expanded = true }
-                    .padding(start = 8.dp, end = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(value, modifier = Modifier.weight(1f), fontSize = 12.sp, color = colors.onSurface)
-                Icon(Icons.Default.ArrowDropDown, null, Modifier.size(17.dp), tint = colors.primary)
-            }
-            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                options.forEach { option ->
-                    DropdownMenuItem(
-                        text = { Text(option, fontSize = 12.sp) },
-                        onClick = { onSelect(option); expanded = false }
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ToolInputRow(label: String, value: String, onValueChange: (String) -> Unit) {
-    val colors = LocalAppColors.current
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, modifier = Modifier.width(94.dp), fontSize = 12.sp, color = colors.onSurface)
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .height(32.dp)
-                .background(colors.background, RoundedCornerShape(4.dp))
-                .border(1.dp, colors.border, RoundedCornerShape(4.dp))
-                .padding(horizontal = 8.dp),
-            contentAlignment = Alignment.CenterStart
-        ) {
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                textStyle = TextStyle(fontSize = 12.sp, color = colors.onSurface),
-                cursorBrush = SolidColor(colors.primary)
-            )
-        }
-    }
-}
 
 private fun String.visibleCommand(): String = replace("\r", "\\r").replace("\n", "\\n").replace("\t", "\\t")
 private fun ByteArray.readableHex(): String = toHexString().chunked(2).joinToString(" ")

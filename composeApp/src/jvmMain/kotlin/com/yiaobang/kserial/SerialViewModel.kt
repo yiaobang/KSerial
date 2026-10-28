@@ -27,7 +27,8 @@ import com.yiaobang.kserial.model.SerialLineSignals
 import com.yiaobang.kserial.model.SerialPortConfig
 import com.yiaobang.kserial.model.SendHistoryState
 import com.yiaobang.kserial.serial.PortMonitor
-import com.yiaobang.kserial.serial.SerialComm
+import com.yiaobang.kserial.serial.EndpointAddress
+import com.yiaobang.kserial.serial.TransportRouter
 import com.yiaobang.kserial.serial.SerialPortInfo
 import com.yiaobang.kserial.serial.SerialPortLeaseRegistry
 import com.yiaobang.kserial.serial.SerialTransportEvent
@@ -73,7 +74,7 @@ class SerialViewModel(
     private val autoConnectFirstPort: Boolean = true,
     private val syncOnConfigChange: Boolean = true,
     val sendHistory: SendHistoryState = SendHistoryState(),
-    val serialComm: SerialTransport = SerialComm()
+    val serialComm: SerialTransport = TransportRouter()
 ) : ViewModel() {
 
     // ---- 状态持有者（职责分离）----
@@ -169,7 +170,7 @@ class SerialViewModel(
             PortMonitor.availablePorts.collect { ports ->
                 availablePorts = ports
                 val connectedPort = leasedPort
-                if (connectedPort != null && connectedPort !in ports) {
+                if (connectedPort != null && EndpointAddress.lostFromPortList(connectedPort, ports)) {
                     handleUnexpectedDisconnect(RuntimeMessages.portDisconnected(prefs.currentLanguage, connectedPort))
                 }
                 if (autoConnectFirstPort && config.selectedPort.isEmpty() && ports.isNotEmpty()) {
@@ -508,6 +509,8 @@ class SerialViewModel(
             applySimulatorEndpointConfig(file)
             applySimulatorHighlightConfig(file)
             newSimulator.serialComm = serialComm
+            // 延迟应答用 viewModelScope 排队串行发出；关闭端口时 clearSimulator 会一并取消。
+            newSimulator.replyScope = viewModelScope
             newSimulator.onReply = { data, written ->
                 viewModelScope.launch {
                     if (written > 0) {
@@ -585,6 +588,7 @@ class SerialViewModel(
     // ---- 辅助操作 ----
 
     fun clearLogs() = logs.clear()
+
     fun clearTx() { txCount = 0 }
     fun clearRx() {
         rxCounterBaseline = receivedByteTotal.get()
@@ -663,7 +667,9 @@ class SerialViewModel(
         reconnectJob = viewModelScope.launch {
             while (isActive && desiredConnected && prefs.autoReconnect && !isPortOpen) {
                 delay(prefs.reconnectIntervalMs)
-                if (config.selectedPort in availablePorts && syncPort(reconnecting = true)) break
+                val target = config.selectedPort
+                val reachable = target in availablePorts || EndpointAddress.looksLikeNetwork(target)
+                if (reachable && syncPort(reconnecting = true)) break
             }
         }
     }

@@ -3,6 +3,7 @@ package com.yiaobang.kserial.model
 import com.typesafe.config.Config
 import com.typesafe.config.ConfigFactory
 import com.yiaobang.kserial.i18n.Language
+import com.yiaobang.kserial.serial.EndpointAddress
 import com.yiaobang.kserial.utils.hexToByteArray
 import java.io.File
 
@@ -139,6 +140,31 @@ object ConfigValidator {
                 )
             }
         }
+
+        // 应答延迟：全局 responseDelay 与规则级 delay，支持固定毫秒数或 "min~max" 随机区间，0～600000ms。
+        config.optionalString("responseDelay")?.let { raw ->
+            if (ReplyDelay.parse(raw) == null) {
+                issues += warning(
+                    language,
+                    "responseDelay 无效：$raw（支持固定毫秒数或 min~max 区间，0～600000，已按 0 处理）",
+                    "Invalid responseDelay: $raw (expected a fixed value or min~max range, 0-600000; 0 will be used)",
+                    "responseDelay が無効です：$raw（固定値または min~max の範囲、0～600000 で指定してください、0 として処理します）"
+                )
+            }
+        }
+        if (config.hasPath("rules")) {
+            config.getConfigList("rules").forEachIndexed { index, rule ->
+                val raw = rule.optionalString("delay") ?: return@forEachIndexed
+                if (ReplyDelay.parse(raw) == null) {
+                    issues += warning(
+                        language,
+                        "规则 ${index + 1} 的 delay 无效：$raw（支持固定毫秒数或 min~max 区间，0～600000，已按全局值处理）",
+                        "Rule ${index + 1} delay is invalid: $raw (expected a fixed value or min~max range, 0-600000; the global value will be used)",
+                        "ルール ${index + 1} の delay が無効です：$raw（固定値または min~max の範囲、0～600000 で指定してください、グローバル値を適用します）"
+                    )
+                }
+            }
+        }
         return issues
     }
 
@@ -169,6 +195,28 @@ object ConfigValidator {
         }
         config.optionalConfig("highlight")?.let {
             validateHighlight(it, language, "gateway.highlight", issues)
+        }
+        config.optionalString("logFormat")?.let { raw ->
+            val value = raw.trim().lowercase()
+            if (value !in setOf("auto", "text", "hex")) {
+                issues += warning(
+                    language,
+                    "gateway.logFormat 无效：$raw（可用 auto / text / hex，已按 auto 处理）",
+                    "Invalid gateway.logFormat: $raw (expected auto / text / hex, falling back to auto)",
+                    "gateway.logFormat が無効です：$raw（auto / text / hex を指定できます、auto として処理します）"
+                )
+            }
+        }
+        config.optionalString("backpressure")?.let { raw ->
+            val value = raw.trim().lowercase()
+            if (value !in setOf("drop", "block")) {
+                issues += warning(
+                    language,
+                    "gateway.backpressure 无效：$raw（可用 drop / block，已按 drop 处理）",
+                    "Invalid gateway.backpressure: $raw (expected drop / block, falling back to drop)",
+                    "gateway.backpressure が無効です：$raw（drop / block を指定できます、drop として処理します）"
+                )
+            }
         }
 
         if (!config.hasPath("routes")) {
@@ -226,8 +274,19 @@ object ConfigValidator {
                 "$path.autoOpen はサポートされていません。削除し、読み込み後に実行をクリックしてください"
             )
         }
-        val baudRate = endpoint.optionalInt("baudRate")
-        if (baudRate == null || baudRate <= 0) issues += error(language, "$path.baudRate 缺失或无效", "$path.baudRate is missing or invalid", "$path.baudRate がないか無効です")
+        // 网络端点（tcp:// / udp://）没有波特率概念，只校验串口端点。
+        val isNetworkEndpoint = EndpointAddress.looksLikeNetwork(endpoint.optionalString("port").orEmpty())
+        if (!isNetworkEndpoint) {
+            val baudRate = endpoint.optionalInt("baudRate")
+            if (baudRate == null || baudRate <= 0) {
+                issues += error(
+                    language,
+                    "$path.baudRate 缺失或无效",
+                    "$path.baudRate is missing or invalid",
+                    "$path.baudRate がないか無効です"
+                )
+            }
+        }
         endpoint.optionalInt("dataBits")?.let { value ->
             if (value !in 5..8) issues += error(language, "$path.dataBits 必须为 5～8", "$path.dataBits must be between 5 and 8", "$path.dataBits は 5～8 で指定してください")
         }

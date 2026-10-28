@@ -1,7 +1,10 @@
 package com.yiaobang.kserial.workspace
 
 import com.yiaobang.kserial.SerialViewModel
+import com.yiaobang.kserial.feature.CaptureViewModel
 import com.yiaobang.kserial.feature.GatewayViewModel
+import com.yiaobang.kserial.feature.PlotterViewModel
+import com.yiaobang.kserial.feature.TestRunnerViewModel
 import com.yiaobang.kserial.i18n.Language
 
 /**
@@ -11,7 +14,10 @@ import com.yiaobang.kserial.i18n.Language
 enum class WorkspaceSection(val fallbackTitle: String) {
     Basic("串口终端"),
     Simulator("设备模拟"),
-    Gateway("串口桥接");
+    Gateway("串口桥接"),
+    Recorder("串口录制"),
+    TestRunner("测试序列"),
+    Plotter("串口绘图");
 
     fun localizedTitle(language: Language): String = when (language) {
         Language.ZH -> fallbackTitle
@@ -19,11 +25,17 @@ enum class WorkspaceSection(val fallbackTitle: String) {
             Basic -> "Terminal"
             Simulator -> "Simulator"
             Gateway -> "Gateway"
+            Recorder -> "Capture"
+            TestRunner -> "Test Sequence"
+            Plotter -> "Plotter"
         }
         Language.JA -> when (this) {
             Basic -> "ターミナル"
             Simulator -> "シミュレータ"
             Gateway -> "ゲートウェイ"
+            Recorder -> "キャプチャ"
+            TestRunner -> "テストシーケンス"
+            Plotter -> "プロッタ"
         }
     }
 }
@@ -73,6 +85,60 @@ class GatewayTabContent(
     val viewModel: GatewayViewModel
 ) : WorkspaceTabContent {
     override val section = WorkspaceSection.Gateway
+
+    override fun applyLanguage(language: Language) {
+        viewModel.language = language
+    }
+
+    override fun dispose() {
+        viewModel.onCleared()
+    }
+}
+
+/** 串口录制：一对端点 + 双向转发 + 问答录制。 */
+class CaptureTabContent(
+    val viewModel: CaptureViewModel
+) : WorkspaceTabContent {
+    override val section = WorkspaceSection.Recorder
+
+    override val selectedPort: String?
+        get() = viewModel.deviceSide.selectedPort.ifBlank { null }
+
+    override fun applyLanguage(language: Language) {
+        viewModel.language = language
+    }
+
+    override fun dispose() {
+        viewModel.onCleared()
+    }
+}
+
+/** 测试序列：加载 .conf 步骤表并在串口上回放。 */
+class TestTabContent(
+    val viewModel: TestRunnerViewModel
+) : WorkspaceTabContent {
+    override val section = WorkspaceSection.TestRunner
+
+    override val selectedPort: String?
+        get() = viewModel.sequence?.connection?.port?.ifBlank { null }
+
+    override fun applyLanguage(language: Language) {
+        viewModel.language = language
+    }
+
+    override fun dispose() {
+        viewModel.onCleared()
+    }
+}
+
+/** 串口绘图：把数值流画成实时曲线。 */
+class PlotterTabContent(
+    val viewModel: PlotterViewModel
+) : WorkspaceTabContent {
+    override val section = WorkspaceSection.Plotter
+
+    override val selectedPort: String?
+        get() = viewModel.port.ifBlank { null }
 
     override fun applyLanguage(language: Language) {
         viewModel.language = language

@@ -132,7 +132,13 @@ jvmTestTask.configure {
 val hardwareTestClasses = mapOf(
     "terminalHardwareTest" to "com.yiaobang.kserial.hardware.TerminalHardwareTest",
     "simulatorHardwareTest" to "com.yiaobang.kserial.hardware.SimulatorHardwareTest",
-    "gatewayHardwareTest" to "com.yiaobang.kserial.hardware.GatewayHardwareTest"
+    "gatewayHardwareTest" to "com.yiaobang.kserial.hardware.GatewayHardwareTest",
+    "captureHardwareTest" to "com.yiaobang.kserial.hardware.CaptureHardwareTest",
+    "recorderRoundTripHardwareTest" to "com.yiaobang.kserial.hardware.RecorderRoundTripHardwareTest",
+    "networkSerialBridgeHardwareTest" to "com.yiaobang.kserial.hardware.NetworkSerialBridgeHardwareTest",
+    "testRunnerHardwareTest" to "com.yiaobang.kserial.hardware.TestRunnerHardwareTest",
+    "cliGatewayHardwareTest" to "com.yiaobang.kserial.hardware.CliGatewayHardwareTest",
+    "plotterHardwareTest" to "com.yiaobang.kserial.hardware.PlotterHardwareTest"
 )
 
 // 每个功能独占一个 Test 任务，IDE 可单独点击运行，避免不同功能同时争用虚拟串口。
@@ -163,6 +169,13 @@ fun registerHardwareTestTask(
 
 val hardwareTestTasks = hardwareTestClasses.mapValues { (taskName, testClass) ->
     registerHardwareTestTask(taskName, testClass, observationDelayMillis = "0")
+}
+
+// 虚拟串口是全局共享资源，硬件任务必须严格串行执行，避免相邻任务争抢同一端口。
+hardwareTestClasses.keys.zipWithNext { previous, next ->
+    hardwareTestTasks.getValue(next).configure {
+        mustRunAfter(hardwareTestTasks.getValue(previous))
+    }
 }
 
 tasks.register("coreTest") {
@@ -206,6 +219,9 @@ tasks.register("allKSerialTest") {
     dependsOn(jvmTestTask, "allHardwareTest")
 }
 
+// Kover 0.9.11 在 Gradle 9.8 上会打印一条 "Configuration.setVisible(boolean) has been deprecated" 警告，
+// 来自插件内部的 asBucket/asTransitiveDependencies（准备覆盖桶配置时调用），与本脚本配置无关。
+// 上游已修复（Kotlin/kotlinx-kover#838，2026-10-22 合入 master），计划随 0.9.12 发布，届时升级即可消除。
 kover {
     reports {
         filters {

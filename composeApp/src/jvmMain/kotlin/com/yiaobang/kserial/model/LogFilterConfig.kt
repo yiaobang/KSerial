@@ -13,6 +13,10 @@ class LogFilterConfig {
     var showRx by mutableStateOf(true)
     var showInfo by mutableStateOf(true)
 
+    /** 是否有任何筛选条件生效（用于日志头部的开关高亮）。 */
+    val isActive: Boolean
+        get() = query.isNotBlank() || onlyMatches || !showTx || !showRx || !showInfo
+
     fun accepts(log: LogEntry): Boolean {
         val typeAccepted = when (log.type) {
             LogType.TX -> showTx

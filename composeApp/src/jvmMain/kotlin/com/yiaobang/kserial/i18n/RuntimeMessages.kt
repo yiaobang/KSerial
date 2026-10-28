@@ -106,10 +106,151 @@ object RuntimeMessages {
         "$source → $target：$content"
     )
 
+    /** 合并模式的转发日志：一条记录里列出全部投递成功的目标。 */
+    fun forwardedToMany(language: Language, source: String, targets: List<String>, content: String) = language.pick(
+        "$source → ${targets.joinToString("、")}：$content",
+        "$source → ${targets.joinToString(", ")}: $content",
+        "$source → ${targets.joinToString("、")}：$content"
+    )
+
     fun gatewayDropped(language: Language, endpoint: String, bytes: Long) = language.pick(
         "$endpoint：接收队列过载，丢弃 $bytes 字节",
         "$endpoint: receive queue dropped $bytes bytes",
         "$endpoint：受信キューで $bytes バイトを破棄しました"
+    )
+
+    fun simulatorExportDialogTitle(language: Language) = language.pick(
+        "导出模拟器配置",
+        "Export Simulator Config",
+        "シミュレータ設定を書き出す"
+    )
+
+    fun simulatorConfigExported(language: Language, file: String, pairs: Int) = language.pick(
+        "模拟器配置已导出：$file（$pairs 组问答）",
+        "Simulator config exported: $file ($pairs pairs)",
+        "シミュレータ設定を書き出しました：$file（$pairs ペア）"
+    )
+
+    fun simulatorConfigExportFailed(language: Language, detail: String) = language.pick(
+        "模拟器配置导出失败：$detail",
+        "Failed to export simulator config: $detail",
+        "シミュレータ設定の書き出しに失敗しました：$detail"
+    )
+
+    // ---- 串口录制 ----
+
+    fun softwareSide(language: Language) = language.pick("软件侧", "Software side", "ソフトウェア側")
+
+    fun deviceSide(language: Language) = language.pick("设备侧", "Device side", "デバイス側")
+
+    fun captureNeedPorts(language: Language) = language.pick(
+        "请先填写软件侧和设备侧的端口地址",
+        "Fill in both the software-side and device-side endpoints first",
+        "ソフトウェア側とデバイス側の両方のアドレスを入力してください"
+    )
+
+    fun captureSamePort(language: Language, port: String) = language.pick(
+        "两个端点不能使用同一个地址：$port",
+        "The two endpoints cannot use the same address: $port",
+        "2 つの端点に同じアドレスは使えません：$port"
+    )
+
+    fun captureStarted(language: Language) = language.pick(
+        "已开始双向转发：软件侧 ⇄ 设备侧",
+        "Bidirectional forwarding started: software side ⇄ device side",
+        "双方向の転送を開始しました：ソフトウェア側 ⇄ デバイス側"
+    )
+
+    fun captureManualStarted(language: Language) = language.pick(
+        "已开始手动录制：输入区 ⇄ 设备侧",
+        "Manual capture started: input box ⇄ device side",
+        "手動録画を開始しました：入力欄 ⇄ デバイス側"
+    )
+
+    fun manualInvalidHex(language: Language) = language.pick(
+        "HEX 输入无法解析，请检查格式（如 01 A0 FF）",
+        "Cannot parse HEX input; expected pairs like 01 A0 FF",
+        "HEX 入力を解析できません。01 A0 FF の形式で入力してください"
+    )
+
+    fun captureStopped(language: Language) = language.pick(
+        "双向转发已停止",
+        "Bidirectional forwarding stopped",
+        "双方向の転送を停止しました"
+    )
+
+    fun captureRecordingStarted(language: Language) = language.pick(
+        "开始录制：软件指令与其后的设备应答将自动配对",
+        "Recording started: each software command will be paired with the device response",
+        "記録を開始しました：ソフトウェアのコマンドとデバイスの応答をペア化します"
+    )
+
+    fun captureRecordingEmpty(language: Language) = language.pick(
+        "录制结束：没有捕获到问答对（需要软件至少发出一条指令且设备有应答）",
+        "Recording finished: no pairs captured (the software must send at least one command and the device must reply)",
+        "記録終了：ペアが取得できませんでした（コマンド送信と応答が必要です）"
+    )
+
+    fun captureRecordingHeld(language: Language, pairs: Int) = language.pick(
+        "已停止录制，保留了 $pairs 组问答；重新开始录制会清空它们",
+        "Recording stopped with $pairs pairs kept; starting again clears them",
+        "記録を停止しました（$pairs ペア保持）。再度開始するとクリアされます"
+    )
+
+    fun captureExportNeedsIdle(language: Language) = language.pick(
+        "导出前请先停止转发，否则配置文件里的端口仍被占用",
+        "Stop forwarding before exporting, otherwise the port in the config is still in use",
+        "書き出す前に転送を停止してください（ポートが使用中のままです）"
+    )
+
+    // ---- 测试序列 ----
+
+    fun testStarted(language: Language, steps: Int) = language.pick(
+        "开始运行测试序列，共 $steps 步",
+        "Test sequence started with $steps steps",
+        "テストシーケンスを開始しました（$steps ステップ）"
+    )
+
+    fun testFinished(language: Language, passed: Int, total: Int) = language.pick(
+        "测试完成：通过 $passed / $total",
+        "Test finished: $passed / $total passed",
+        "テスト完了：$passed / $total 合格"
+    )
+
+    fun testOpenFailed(language: Language, detail: String) = language.pick(
+        "无法打开测试端口：$detail",
+        "Unable to open the test port: $detail",
+        "テスト用ポートを開けませんでした：$detail"
+    )
+
+    fun testLoadFailed(language: Language, detail: String) = language.pick(
+        "测试配置加载失败：$detail",
+        "Test configuration failed to load: $detail",
+        "テスト設定を読み込めませんでした：$detail"
+    )
+
+    fun testLoaded(language: Language, file: String, steps: Int) = language.pick(
+        "测试配置已加载：$file（$steps 步）",
+        "Test configuration loaded: $file ($steps steps)",
+        "テスト設定を読み込みました：$file（$steps ステップ）"
+    )
+
+    fun testStepTimedOut(language: Language, expected: String, timeout: Int) = language.pick(
+        "等待「$expected」超时（${timeout}ms）",
+        "Timed out waiting for \"$expected\" (${timeout}ms)",
+        "「$expected」の待機がタイムアウトしました（${timeout}ms）"
+    )
+
+    fun testStepNoResponse(language: Language, timeout: Int) = language.pick(
+        "静默检查失败：${timeout}ms 内仍收到数据",
+        "Silence check failed: data arrived within ${timeout}ms",
+        "無音チェック失敗：${timeout}ms 以内にデータを受信しました"
+    )
+
+    fun testStepMismatch(language: Language, expected: String, actual: String) = language.pick(
+        "期望「$expected」，实际收到「$actual」",
+        "Expected \"$expected\" but received \"$actual\"",
+        "期待「$expected」、実際は「$actual」でした"
     )
 
     private fun Language.pick(zh: String, en: String, ja: String): String = when (this) {

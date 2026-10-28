@@ -106,8 +106,151 @@ class GatewayViewModelTest {
             assertTrue(viewModel.logs.none { it.type == LogType.RX })
             val transmitted = viewModel.logs.single { it.type == LogType.TX }
             assertTrue(transmitted.content.contains("Source → Target"))
-            assertTrue(transmitted.content.contains("0102FF"))
+            assertTrue(transmitted.content.contains("01 02 FF"))
             assertEquals(payload.size.toLong(), target.txCount)
+        } finally {
+            viewModel.onCleared()
+            PortMonitor.stop()
+            SerialPortLeaseRegistry.clear()
+        }
+    }
+
+    @Test
+    fun forwardingIsLoggedOnceWithAllTargetsWhenMerged() = runTest {
+        val targets = (1..3).map { i ->
+            GatewayEndpoint(i, "target$i", "Target$i", RecordingTransport()).apply { isOpen = true }
+        }
+        val source = GatewayEndpoint(0, "source", "Source", RecordingTransport())
+        val viewModel = GatewayViewModel().apply {
+            endpoints += source
+            endpoints += targets
+            routes += GatewayRoute("route", setOf(source.id), targets.map { it.id }.toSet(), enabled = true)
+        }
+
+        try {
+            viewModel.onEndpointData(source, byteArrayOf(0x41, 0x42))
+
+            assertEquals(1, viewModel.logs.count { it.type == LogType.TX })
+            val line = viewModel.logs.single { it.type == LogType.TX }.content
+            targets.forEach { assertTrue(line.contains(it.name)) }
+            assertTrue(line.contains("AB"))
+        } finally {
+            viewModel.onCleared()
+            PortMonitor.stop()
+            SerialPortLeaseRegistry.clear()
+        }
+    }
+
+    @Test
+    fun perTargetLoggingStillAvailableWhenMergeDisabled() = runTest {
+        val targets = (1..3).map { i ->
+            GatewayEndpoint(i, "target$i", "Target$i", RecordingTransport()).apply { isOpen = true }
+        }
+        val source = GatewayEndpoint(0, "source", "Source", RecordingTransport())
+        val viewModel = GatewayViewModel().apply {
+            endpoints += source
+            endpoints += targets
+            routes += GatewayRoute("route", setOf(source.id), targets.map { it.id }.toSet(), enabled = true)
+            mergeForwardedLogs = false
+        }
+
+        try {
+            viewModel.onEndpointData(source, byteArrayOf(0x41))
+
+            assertEquals(targets.size, viewModel.logs.count { it.type == LogType.TX })
+        } finally {
+            viewModel.onCleared()
+            PortMonitor.stop()
+            SerialPortLeaseRegistry.clear()
+        }
+    }
+
+    @Test
+    fun signalForwardingMirrorsCtsAndDsrToRouteTargets() = runTest {
+        val sourceTransport = RecordingTransport()
+        val targetTransport = RecordingTransport()
+        val source = GatewayEndpoint(0, "source", "Source", sourceTransport).apply { isOpen = true }
+        val target = GatewayEndpoint(1, "target", "Target", targetTransport).apply { isOpen = true }
+        val viewModel = GatewayViewModel().apply {
+            endpoints += source
+            endpoints += target
+            routes += GatewayRoute("route", setOf(source.id), setOf(target.id), enabled = true)
+            forwardSignals = true
+        }
+
+        try {
+            sourceTransport.signals = SerialLineSignals(cts = false, dsr = false)
+            viewModel.syncLineSignals()
+            targetTransport.rtsWrites.single()
+            targetTransport.dtrWrites.single()
+
+            sourceTransport.signals = SerialLineSignals(cts = true, dsr = true)
+            viewModel.syncLineSignals()
+            assertTrue(targetTransport.rtsWrites.last())
+            assertTrue(targetTransport.dtrWrites.last())
+
+            // 电平不变时不应重复写目标。
+            assertEquals(2, targetTransport.rtsWrites.size)
+            assertEquals(2, targetTransport.dtrWrites.size)
+        } finally {
+            viewModel.onCleared()
+            PortMonitor.stop()
+            SerialPortLeaseRegistry.clear()
+        }
+    }
+
+    @Test
+    fun dropModeCountsDroppedBytesWhenQueueOverflows() = runTest {
+        val source = GatewayEndpoint(0, "source", "Source", RecordingTransport())
+        val target = GatewayEndpoint(1, "target", "Target", RecordingTransport()).apply { isOpen = true }
+        val viewModel = GatewayViewModel().apply {
+            endpoints += source
+            endpoints += target
+            routes += GatewayRoute("route", setOf(source.id), setOf(target.id), enabled = true)
+        }
+
+        try {
+            val chunk = ByteArray(2)
+            repeat(600) { viewModel.onDataArrived(source, chunk) }
+
+            assertTrue(source.droppedBytes.get() > 0)
+            // 消费掉队列中剩余的帧，累计接收数应等于 600 帧。
+            var received = 0
+            while (!source.receiveQueue.isEmpty) {
+                source.receiveQueue.receiveCatching().getOrNull() ?: break
+                received++
+            }
+            assertEquals(600 * chunk.size.toLong(), source.droppedBytes.get() + received * chunk.size)
+        } finally {
+            viewModel.onCleared()
+            PortMonitor.stop()
+            SerialPortLeaseRegistry.clear()
+        }
+    }
+
+    @Test
+    fun blockModeQueuesEverythingWithoutDropping() = runTest {
+        val source = GatewayEndpoint(0, "source", "Source", RecordingTransport())
+        val target = GatewayEndpoint(1, "target", "Target", RecordingTransport()).apply { isOpen = true }
+        val viewModel = GatewayViewModel().apply {
+            endpoints += source
+            endpoints += target
+            routes += GatewayRoute("route", setOf(source.id), setOf(target.id), enabled = true)
+            blockBackpressure = true
+        }
+
+        try {
+            val chunk = ByteArray(2)
+            // 少于队列容量时 block 模式应全部入队、零丢弃。
+            repeat(400) { viewModel.onDataArrived(source, chunk) }
+
+            assertEquals(0L, source.droppedBytes.get())
+            var received = 0
+            while (!source.receiveQueue.isEmpty) {
+                source.receiveQueue.receiveCatching().getOrNull() ?: break
+                received++
+            }
+            assertEquals(400, received)
         } finally {
             viewModel.onCleared()
             PortMonitor.stop()
@@ -135,6 +278,9 @@ private class RecordingTransport : SerialTransport {
     private val transportListeners = mutableListOf<(SerialTransportEvent) -> Unit>()
 
     val writes = mutableListOf<ByteArray>()
+    @Volatile var signals = SerialLineSignals()
+    val rtsWrites = java.util.concurrent.CopyOnWriteArrayList<Boolean>()
+    val dtrWrites = java.util.concurrent.CopyOnWriteArrayList<Boolean>()
 
     override val lastErrorMessage: String? = null
     override val isOpen: Boolean
@@ -180,10 +326,17 @@ private class RecordingTransport : SerialTransport {
         open = false
     }
 
-    override fun setDtr(enabled: Boolean): Boolean = true
-    override fun setRts(enabled: Boolean): Boolean = true
+    override fun setDtr(enabled: Boolean): Boolean {
+        dtrWrites += enabled
+        return true
+    }
+
+    override fun setRts(enabled: Boolean): Boolean {
+        rtsWrites += enabled
+        return true
+    }
     override fun setBreak(enabled: Boolean): Boolean = true
-    override fun lineSignals(): SerialLineSignals = SerialLineSignals()
+    override fun lineSignals(): SerialLineSignals = signals
 
     override fun write(data: ByteArray): Int {
         writes += data.copyOf()

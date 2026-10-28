@@ -7,7 +7,12 @@ package com.yiaobang.kserial.model
  * @param replies 指令-应答映射表
  * @param packSize 指定的每个数据包的大小
  */
-class FixedLengthSimulator(replies: Map<String, ByteArray>, private val packSize: Int) : DeviceSimulator(replies) {
+class FixedLengthSimulator(
+    replies: Map<String, ByteArray>,
+    private val packSize: Int,
+    ruleDelays: Map<String, ReplyDelay> = emptyMap(),
+    defaultDelay: ReplyDelay = ReplyDelay.fixed(0)
+) : DeviceSimulator(replies, ruleDelays, defaultDelay) {
 
     /**
      * 核心检测逻辑：
